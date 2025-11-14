@@ -99,8 +99,8 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 		errStr := err.Error()
 		if strings.Contains(errStr, "unknown format") || strings.Contains(errStr, "invalid format") {
 			// 애니메이션 파일로 분류
-			category = "animation"
-			fmt.Printf("  형식 오류 감지: 애니메이션 파일로 분류\n")
+			category = ip.config.AnimationCategory
+			fmt.Printf("  형식 오류 감지: %s로 분류\n", category)
 		} else {
 			// 다른 오류인 경우 원래 이름으로 복원 후 종료
 			if needsRestore {
