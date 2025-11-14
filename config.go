@@ -8,11 +8,12 @@ import (
 
 // Config 설정 파일 구조체
 type Config struct {
-	SourcePath      string `json:"source_path"`
-	DestinationPath string `json:"destination_path"`
-	Model           string `json:"model"`
-	PromptFile      string `json:"prompt_file"`
-	Prompt          string // 내부 사용용 (파일에서 읽은 내용)
+	SourcePath        string `json:"source_path"`
+	DestinationPath   string `json:"destination_path"`
+	Model             string `json:"model"`
+	PromptFile        string `json:"prompt_file"`
+	AnimationCategory string `json:"animation_category"`
+	Prompt            string // 내부 사용용 (파일에서 읽은 내용)
 }
 
 // LoadConfig 설정 파일을 로드합니다
@@ -40,6 +41,11 @@ func LoadConfig(configPath string) (*Config, error) {
 		config.Model = "qwen3-vl:latest"
 	}
 
+	// 기본 애니메이션 카테고리 설정
+	if config.AnimationCategory == "" {
+		config.AnimationCategory = "animation"
+	}
+
 	// 프롬프트 파일 읽기
 	promptFile := config.PromptFile
 	if promptFile == "" {
@@ -54,4 +60,3 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	return &config, nil
 }
-

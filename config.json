@@ -2,6 +2,7 @@
   "source_path": "C:\\Picture",
   "destination_path": "C:\\Picture\\분류",
   "model": "qwen3-vl:4b",
-  "prompt_file": "prompt.txt"
+  "prompt_file": "prompt.txt",
+  "animation_category": "animation"
 }
 
