@@ -8,12 +8,14 @@ import (
 
 // Config 설정 파일 구조체
 type Config struct {
-	SourcePath        string `json:"source_path"`
-	DestinationPath   string `json:"destination_path"`
-	Model             string `json:"model"`
-	PromptFile        string `json:"prompt_file"`
-	AnimationCategory string `json:"animation_category"`
-	Prompt            string // 내부 사용용 (파일에서 읽은 내용)
+	SourcePath        string   `json:"source_path"`
+	DestinationPath   string   `json:"destination_path"`
+	Model             string   `json:"model"`
+	PromptFile        string   `json:"prompt_file"`
+	AnimationCategory string   `json:"animation_category"`
+	ValidCategories   []string `json:"valid_categories"`
+	OllamaBaseURL     string   `json:"ollama_base_url"`
+	Prompt            string   // 내부 사용용 (파일에서 읽은 내용)
 }
 
 // LoadConfig 설정 파일을 로드합니다
@@ -38,12 +40,17 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	// 기본 모델명 설정
 	if config.Model == "" {
-		config.Model = "qwen3-vl:latest"
+		return nil, fmt.Errorf("model이 설정되지 않았습니다")
 	}
 
 	// 기본 애니메이션 카테고리 설정
 	if config.AnimationCategory == "" {
 		config.AnimationCategory = "animation"
+	}
+
+	// 기본 Ollama Base URL 설정
+	if config.OllamaBaseURL == "" {
+		config.OllamaBaseURL = "http://localhost:11434"
 	}
 
 	// 프롬프트 파일 읽기

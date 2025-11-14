@@ -3,6 +3,24 @@
   "destination_path": "C:\\Picture\\분류",
   "model": "qwen3-vl:4b",
   "prompt_file": "prompt.txt",
-  "animation_category": "animation"
+  "animation_category": "animation",
+  "ollama_base_url": "http://localhost:11434",
+  "valid_categories": [
+    "illustration",
+    "nsfw_2d",
+    "manga",
+    "real_person",
+    "cosplay",
+    "nsfw_real",
+    "figure",
+    "document",
+    "animal",
+    "food",
+    "game_screen",
+    "landscape",
+    "meme",
+    "object",
+    "others"
+  ]
 }
 

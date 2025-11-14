@@ -21,7 +21,7 @@ type OllamaClient struct {
 }
 
 // NewOllamaClient 새로운 Ollama 클라이언트를 생성합니다
-func NewOllamaClient(baseURL, model, prompt string) *OllamaClient {
+func NewOllamaClient(baseURL, model, prompt string, validCategories []string) *OllamaClient {
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
 	}
@@ -29,23 +29,16 @@ func NewOllamaClient(baseURL, model, prompt string) *OllamaClient {
 		model = "qwen3-vl:latest"
 	}
 
-	// 유효한 카테고리 목록
-	validCategories := map[string]bool{
-		"illustration": true,
-		"nsfw_2d":      true,
-		"manga":        true,
-		"real_person":  true,
-		"cosplay":      true,
-		"nsfw_real":    true,
-		"figure":       true,
-		"document":     true,
-		"animal":       true,
-		"food":         true,
-		"game_screen":  true,
-		"landscape":    true,
-		"meme":         true,
-		"object":       true,
-		"others":       true,
+	// 유효한 카테고리 맵 생성
+	var categoryMap map[string]bool
+	if len(validCategories) > 0 {
+		categoryMap = make(map[string]bool)
+		for _, cat := range validCategories {
+			categoryMap[strings.ToLower(cat)] = true
+		}
+	} else {
+		// validCategories가 비어있으면 nil로 설정하여 검증 비활성화
+		categoryMap = nil
 	}
 
 	return &OllamaClient{
@@ -53,7 +46,7 @@ func NewOllamaClient(baseURL, model, prompt string) *OllamaClient {
 		model:           model,
 		prompt:          prompt,
 		client:          &http.Client{},
-		validCategories: validCategories,
+		validCategories: categoryMap,
 	}
 }
 
@@ -192,5 +185,9 @@ func cleanCategoryName(category string) string {
 
 // isValidCategory 카테고리가 유효한지 검증합니다
 func (oc *OllamaClient) isValidCategory(category string) bool {
+	// validCategories가 nil이면 검증 비활성화 (모든 카테고리 허용)
+	if oc.validCategories == nil {
+		return true
+	}
 	return oc.validCategories[category]
 }
