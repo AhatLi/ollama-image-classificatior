@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,3 +59,124 @@ func MoveFileToCategory(filePath, destinationPath, category string) error {
 	return nil
 }
 
+// RestoreLogEntry 복원 로그 항목
+type RestoreLogEntry struct {
+	Original   string `json:"original"`
+	Normalized string `json:"normalized"`
+}
+
+// RestoreLog 복원 로그 구조체
+type RestoreLog struct {
+	Restores []RestoreLogEntry `json:"restores"`
+}
+
+const restoreLogFile = "restore.json"
+
+// LoadRestoreLog 복원 로그 파일을 읽습니다
+func LoadRestoreLog() (*RestoreLog, error) {
+	data, err := os.ReadFile(restoreLogFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &RestoreLog{Restores: []RestoreLogEntry{}}, nil
+		}
+		return nil, err
+	}
+
+	var log RestoreLog
+	if err := json.Unmarshal(data, &log); err != nil {
+		return nil, fmt.Errorf("로그 파일 파싱 실패: %w", err)
+	}
+
+	return &log, nil
+}
+
+// SaveRestoreLog 복원 로그를 파일에 저장합니다 (덮어쓰기)
+func SaveRestoreLog(log *RestoreLog) error {
+	data, err := json.MarshalIndent(log, "", "  ")
+	if err != nil {
+		return fmt.Errorf("JSON 마샬링 실패: %w", err)
+	}
+
+	return os.WriteFile(restoreLogFile, data, 0644)
+}
+
+// AddRestoreLogEntry 복원 로그에 항목을 추가합니다
+func AddRestoreLogEntry(originalPath, normalizedPath string) error {
+	log, err := LoadRestoreLog()
+	if err != nil {
+		return err
+	}
+
+	// 이미 존재하는지 확인
+	for i := range log.Restores {
+		if log.Restores[i].Normalized == normalizedPath {
+			// 이미 존재하면 업데이트
+			log.Restores[i].Original = originalPath
+			return SaveRestoreLog(log)
+		}
+	}
+
+	// 새 항목 추가
+	log.Restores = append(log.Restores, RestoreLogEntry{
+		Original:   originalPath,
+		Normalized: normalizedPath,
+	})
+
+	return SaveRestoreLog(log)
+}
+
+// RemoveRestoreLogEntry 복원 로그에서 항목을 제거합니다
+func RemoveRestoreLogEntry(normalizedPath string) error {
+	log, err := LoadRestoreLog()
+	if err != nil {
+		return err
+	}
+
+	// 해당 항목 제거
+	var newRestores []RestoreLogEntry
+	for _, entry := range log.Restores {
+		if entry.Normalized != normalizedPath {
+			newRestores = append(newRestores, entry)
+		}
+	}
+
+	log.Restores = newRestores
+	return SaveRestoreLog(log)
+}
+
+// RestoreFromLog 로그 파일에서 파일명을 복원합니다
+func RestoreFromLog() error {
+	log, err := LoadRestoreLog()
+	if err != nil {
+		return err
+	}
+
+	if len(log.Restores) == 0 {
+		return nil
+	}
+
+	restoredCount := 0
+	for _, entry := range log.Restores {
+		// 파일이 존재하는지 확인
+		if _, err := os.Stat(entry.Normalized); err == nil {
+			if restoreErr := RestoreFileName(entry.Original, entry.Normalized); restoreErr == nil {
+				restoredCount++
+				fmt.Printf("복원됨: %s -> %s\n", entry.Normalized, entry.Original)
+			}
+		}
+	}
+
+	if restoredCount > 0 {
+		fmt.Printf("총 %d개의 파일명이 복원되었습니다.\n", restoredCount)
+	}
+
+	return nil
+}
+
+// ClearRestoreLog 로그 파일을 삭제합니다
+func ClearRestoreLog() error {
+	if _, err := os.Stat(restoreLogFile); os.IsNotExist(err) {
+		return nil
+	}
+	return os.Remove(restoreLogFile)
+}
