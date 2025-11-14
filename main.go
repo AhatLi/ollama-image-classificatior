@@ -12,6 +12,13 @@ func main() {
 		configPath = os.Args[1]
 	}
 
+	// 이전 실행에서 남은 파일명 복원
+	fmt.Println("이전 실행에서 변경된 파일명 복원 중...")
+	if err := RestoreFromLog(); err != nil {
+		fmt.Printf("경고: 파일명 복원 중 오류 발생: %v\n", err)
+	}
+	fmt.Println()
+
 	// 설정 로드
 	fmt.Println("설정 파일 로드 중...")
 	config, err := LoadConfig(configPath)
@@ -34,6 +41,11 @@ func main() {
 	if err := processor.ProcessAllImages(); err != nil {
 		fmt.Fprintf(os.Stderr, "오류: %v\n", err)
 		os.Exit(1)
+	}
+
+	// 모든 작업 완료 시 로그 파일 삭제
+	if err := ClearRestoreLog(); err != nil {
+		fmt.Printf("경고: 복원 로그 파일 삭제 실패: %v\n", err)
 	}
 
 	fmt.Println("\n모든 이미지 처리가 완료되었습니다.")

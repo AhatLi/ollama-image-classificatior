@@ -90,6 +90,11 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 		}
 		imagePath = normalizedPath
 		needsRestore = true
+
+		// 복원 로그에 기록
+		if err := AddRestoreLogEntry(originalPath, normalizedPath); err != nil {
+			fmt.Printf("경고: 복원 로그 저장 실패: %v\n", err)
+		}
 	}
 
 	// Ollama API로 이미지 분류
@@ -106,6 +111,11 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 			if needsRestore {
 				if restoreErr := RestoreFileName(originalPath, normalizedPath); restoreErr != nil {
 					fmt.Printf("경고: 파일명 복원 실패 (%s -> %s): %v\n", normalizedPath, originalPath, restoreErr)
+				} else {
+					// 복원 성공 시 로그에서 제거
+					if err := RemoveRestoreLogEntry(normalizedPath); err != nil {
+						fmt.Printf("경고: 복원 로그 제거 실패: %v\n", err)
+					}
 				}
 			}
 			return fmt.Errorf("이미지 분류 실패: %w", err)
@@ -121,6 +131,11 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 			return fmt.Errorf("파일명 복원 실패: %w", err)
 		}
 		imagePath = originalPath
+
+		// 복원 성공 시 로그에서 제거
+		if err := RemoveRestoreLogEntry(normalizedPath); err != nil {
+			fmt.Printf("경고: 복원 로그 제거 실패: %v\n", err)
+		}
 	}
 
 	// 파일 이동
