@@ -15,12 +15,13 @@ import (
 type OllamaClient struct {
 	baseURL         string
 	model           string
+	prompt          string
 	client          *http.Client
 	validCategories map[string]bool
 }
 
 // NewOllamaClient 새로운 Ollama 클라이언트를 생성합니다
-func NewOllamaClient(baseURL, model string) *OllamaClient {
+func NewOllamaClient(baseURL, model, prompt string) *OllamaClient {
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
 	}
@@ -50,6 +51,7 @@ func NewOllamaClient(baseURL, model string) *OllamaClient {
 	return &OllamaClient{
 		baseURL:         baseURL,
 		model:           model,
+		prompt:          prompt,
 		client:          &http.Client{},
 		validCategories: validCategories,
 	}
@@ -76,33 +78,8 @@ type GenerateResponse struct {
 
 // ClassifyImage 이미지를 분류합니다
 func (oc *OllamaClient) ClassifyImage(imagePath string) (string, error) {
-	// 프롬프트 생성
-	prompt := fmt.Sprintf(`%s
-You are an intelligent image classification assistant.
-Analyze the provided image and categorize it into EXACTLY ONE of the following categories.
-Categories:
-1. illustration: General 2D art, anime style, digital drawings (Safe for work).
-2. nsfw_2d: 2D art containing nudity, sexually explicit content, or hentai.
-3. manga: Comic strips, black and white manga pages, webtoons, speech bubbles.
-4. real_person: Real-life photos of people (portraits, daily life, fashion).
-5. cosplay: Real people dressed as fictional characters (costumes).
-6. nsfw_real: Real-life photos containing nudity or sexually explicit content.
-7. figure: Photos of physical figurines, toys, plastic models, or statues.
-8. document: Images of text, scanned papers, receipts, or chat logs (excluding memes).
-9. animal: Photos or drawings of animals, pets, or wildlife.
-10. food: Photos or illustrations of food, drinks, cooking, or meals.
-11. game_screen: Screenshots of video games, including UI/HUD elements or gameplay.
-12. landscape: Scenery, nature, urban landscapes, or backgrounds without main characters.
-13. meme: Images with overlaid text intended for humor, internet memes, or reaction images.
-14. object: Photos focused on specific inanimate objects (e.g., cars, electronics, furniture).
-15. others: Any image that completely fails to fit into the above categories.
-
-Constraint:
-- Output valid JSON only.
-- Do not add any explanation, reasoning, or markdown formatting (like json).
-- The value of the "category" key must be exactly one of the category names listed above.
-Output Format:
-{"category": "category_name"}`, imagePath)
+	// 프롬프트 생성 (설정에서 읽은 프롬프트 템플릿에 이미지 경로 삽입)
+	prompt := fmt.Sprintf(oc.prompt, imagePath)
 
 	// 이미지를 base64로 인코딩
 	imageBase64, err := encodeImageToBase64(imagePath)

@@ -1,5 +1,7 @@
 {
-  "source_path": "D:\\Picture\\aa",
-  "destination_path": "D:\\Picture\\분류"
+  "source_path": "C:\\Picture",
+  "destination_path": "C:\\Picture\\분류",
+  "model": "qwen3-vl:4b",
+  "prompt_file": "prompt.txt"
 }
 
