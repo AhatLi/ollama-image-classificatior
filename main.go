@@ -29,10 +29,11 @@ func main() {
 
 	fmt.Printf("검사 경로: %s\n", config.SourcePath)
 	fmt.Printf("이동 경로: %s\n", config.DestinationPath)
-	fmt.Printf("모델명: %s\n\n", config.Model)
+	fmt.Printf("모델명: %s\n", config.Model)
+	fmt.Printf("Ollama Base URL: %s\n\n", config.OllamaBaseURL)
 
 	// Ollama 클라이언트 생성
-	ollamaClient := NewOllamaClient("", config.Model, config.Prompt)
+	ollamaClient := NewOllamaClient(config.OllamaBaseURL, config.Model, config.Prompt, config.ValidCategories)
 
 	// 이미지 처리기 생성
 	processor := NewImageProcessor(config, ollamaClient)
