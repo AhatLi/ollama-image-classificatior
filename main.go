@@ -29,6 +29,7 @@ func main() {
 
 	fmt.Printf("검사 경로: %s\n", config.SourcePath)
 	fmt.Printf("이동 경로: %s\n", config.DestinationPath)
+	fmt.Printf("에러 폴더: %s\n", config.ErrorPath)
 	fmt.Printf("모델명: %s\n", config.Model)
 	fmt.Printf("Ollama Base URL: %s\n\n", config.OllamaBaseURL)
 

@@ -107,17 +107,28 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 			category = ip.config.AnimationCategory
 			fmt.Printf("  형식 오류 감지: %s로 분류\n", category)
 		} else {
-			// 다른 오류인 경우 원래 이름으로 복원 후 종료
+			// API 오류인 경우 (500 등) 에러 폴더로 이동
+			// 원래 이름으로 복원
 			if needsRestore {
 				if restoreErr := RestoreFileName(originalPath, normalizedPath); restoreErr != nil {
 					fmt.Printf("경고: 파일명 복원 실패 (%s -> %s): %v\n", normalizedPath, originalPath, restoreErr)
+					// 복원 실패해도 에러 폴더로 이동 시도
+					imagePath = normalizedPath
 				} else {
+					imagePath = originalPath
 					// 복원 성공 시 로그에서 제거
 					if err := RemoveRestoreLogEntry(normalizedPath); err != nil {
 						fmt.Printf("경고: 복원 로그 제거 실패: %v\n", err)
 					}
 				}
 			}
+
+			// 에러 폴더로 이동
+			if moveErr := MoveFileToErrorFolder(imagePath, ip.config.ErrorPath); moveErr != nil {
+				return fmt.Errorf("이미지 분류 실패 및 에러 폴더 이동 실패: %w (이동 오류: %v)", err, moveErr)
+			}
+
+			fmt.Printf("  에러 폴더로 이동: %s -> %s\n", imagePath, ip.config.ErrorPath)
 			return fmt.Errorf("이미지 분류 실패: %w", err)
 		}
 	}

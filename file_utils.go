@@ -59,6 +59,25 @@ func MoveFileToCategory(filePath, destinationPath, category string) error {
 	return nil
 }
 
+// MoveFileToErrorFolder 파일을 에러 폴더로 이동시킵니다
+func MoveFileToErrorFolder(filePath, errorPath string) error {
+	// 에러 폴더 생성
+	if err := os.MkdirAll(errorPath, 0755); err != nil {
+		return fmt.Errorf("에러 폴더 생성 실패: %w", err)
+	}
+
+	// 파일명 추출
+	fileName := filepath.Base(filePath)
+	destPath := filepath.Join(errorPath, fileName)
+
+	// 파일 이동
+	if err := os.Rename(filePath, destPath); err != nil {
+		return fmt.Errorf("파일 이동 실패: %w", err)
+	}
+
+	return nil
+}
+
 // RestoreLogEntry 복원 로그 항목
 type RestoreLogEntry struct {
 	Original   string `json:"original"`
