@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // Config 설정 파일 구조체
@@ -15,6 +16,7 @@ type Config struct {
 	AnimationCategory string   `json:"animation_category"`
 	ValidCategories   []string `json:"valid_categories"`
 	OllamaBaseURL     string   `json:"ollama_base_url"`
+	ErrorPath         string   `json:"error_path"` // 에러 폴더 경로 (선택적, 없으면 destination_path/error 사용)
 	Prompt            string   // 내부 사용용 (파일에서 읽은 내용)
 }
 
@@ -51,6 +53,11 @@ func LoadConfig(configPath string) (*Config, error) {
 	// 기본 Ollama Base URL 설정
 	if config.OllamaBaseURL == "" {
 		config.OllamaBaseURL = "http://localhost:11434"
+	}
+
+	// 기본 에러 폴더 경로 설정 (지정되지 않은 경우 destination_path/error 사용)
+	if config.ErrorPath == "" {
+		config.ErrorPath = filepath.Join(config.DestinationPath, "error")
 	}
 
 	// 프롬프트 파일 읽기
