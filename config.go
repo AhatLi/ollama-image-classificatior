@@ -15,7 +15,7 @@ type Config struct {
 	PromptFile        string   `json:"prompt_file"`
 	AnimationCategory string   `json:"animation_category"`
 	ValidCategories   []string `json:"valid_categories"`
-	OllamaBaseURL     string   `json:"ollama_base_url"`
+	LlamaBaseURL      string   `json:"llama_base_url"`
 	ErrorPath         string   `json:"error_path"` // 에러 폴더 경로 (선택적, 없으면 destination_path/error 사용)
 	Prompt            string   // 내부 사용용 (파일에서 읽은 내용)
 }
@@ -50,9 +50,9 @@ func LoadConfig(configPath string) (*Config, error) {
 		config.AnimationCategory = "animation"
 	}
 
-	// 기본 Ollama Base URL 설정
-	if config.OllamaBaseURL == "" {
-		config.OllamaBaseURL = "http://localhost:11434"
+	// 기본 llama.cpp(llama-server) Base URL 설정
+	if config.LlamaBaseURL == "" {
+		config.LlamaBaseURL = "http://localhost:8080"
 	}
 
 	// 기본 에러 폴더 경로 설정 (지정되지 않은 경우 destination_path/error 사용)

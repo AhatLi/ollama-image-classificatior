@@ -31,13 +31,13 @@ func main() {
 	fmt.Printf("이동 경로: %s\n", config.DestinationPath)
 	fmt.Printf("에러 폴더: %s\n", config.ErrorPath)
 	fmt.Printf("모델명: %s\n", config.Model)
-	fmt.Printf("Ollama Base URL: %s\n\n", config.OllamaBaseURL)
+	fmt.Printf("llama.cpp Base URL: %s\n\n", config.LlamaBaseURL)
 
-	// Ollama 클라이언트 생성
-	ollamaClient := NewOllamaClient(config.OllamaBaseURL, config.Model, config.Prompt, config.ValidCategories)
+	// llama.cpp 클라이언트 생성
+	llamaClient := NewLlamaClient(config.LlamaBaseURL, config.Model, config.Prompt, config.ValidCategories)
 
 	// 이미지 처리기 생성
-	processor := NewImageProcessor(config, ollamaClient)
+	processor := NewImageProcessor(config, llamaClient)
 
 	// 모든 이미지 처리
 	if err := processor.ProcessAllImages(); err != nil {

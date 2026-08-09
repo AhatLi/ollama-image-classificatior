@@ -9,13 +9,13 @@ import (
 
 // ImageProcessor 이미지 처리기
 type ImageProcessor struct {
-	config       *Config
-	ollamaClient *OllamaClient
-	imageExts    map[string]bool
+	config      *Config
+	llamaClient *LlamaClient
+	imageExts   map[string]bool
 }
 
 // NewImageProcessor 새로운 이미지 처리기를 생성합니다
-func NewImageProcessor(config *Config, ollamaClient *OllamaClient) *ImageProcessor {
+func NewImageProcessor(config *Config, llamaClient *LlamaClient) *ImageProcessor {
 	// 지원하는 이미지 확장자
 	exts := map[string]bool{
 		".jpg":  true,
@@ -29,9 +29,9 @@ func NewImageProcessor(config *Config, ollamaClient *OllamaClient) *ImageProcess
 	}
 
 	return &ImageProcessor{
-		config:       config,
-		ollamaClient: ollamaClient,
-		imageExts:    exts,
+		config:      config,
+		llamaClient: llamaClient,
+		imageExts:   exts,
 	}
 }
 
@@ -97,8 +97,8 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 		}
 	}
 
-	// Ollama API로 이미지 분류
-	category, err := ip.ollamaClient.ClassifyImage(imagePath)
+	// llama.cpp API로 이미지 분류
+	category, err := ip.llamaClient.ClassifyImage(imagePath)
 	if err != nil {
 		// unknown format 또는 invalid format 오류인지 확인
 		errStr := err.Error()

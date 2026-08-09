@@ -1,62 +1,67 @@
-# Ollama 이미지 분류기 (짤 자동 정리 프로그램)
+# llama.cpp 이미지 분류기 (짤 자동 정리 프로그램)
 
-Ollama API를 사용하여 이미지를 자동으로 분류하고 카테고리별 폴더로 정리하는 Go 프로그램입니다.
+llama.cpp(llama-server)를 사용하여 이미지를 자동으로 분류하고 카테고리별 폴더로 정리하는 Go 프로그램입니다.
 
 ## 주요 기능
 
-- 🤖 **Ollama API를 통한 자동 이미지 분류**: Vision 모델을 사용하여 이미지를 분석하고 카테고리로 분류합니다
+- 🤖 **llama.cpp를 통한 자동 이미지 분류**: Vision(멀티모달) 모델을 사용하여 이미지를 분석하고 카테고리로 분류합니다
 - 📁 **카테고리별 자동 이동**: 분류된 이미지를 해당 카테고리 폴더로 자동 이동합니다
 - ⚠️ **에러 처리**: API 오류 발생 시 이미지를 에러 폴더로 이동하여 별도 관리합니다
 - 🎨 **다양한 이미지 형식 지원**: JPG, PNG, GIF, WebP, BMP, TIFF 등 다양한 형식을 지원합니다
 
 ## 사전 요구사항
 
-- **Ollama**: 이미지 분류를 위한 Vision 모델 실행 환경
+- **llama.cpp**: 멀티모달(Vision) GGUF 모델을 실행할 수 있는 `llama-server`
+- **Vision GGUF 모델 + mmproj(비전 프로젝터) 파일**: 이미지를 인식하려면 반드시 mmproj 파일이 함께 필요합니다
 
-## Ollama 설치 및 설정
+## llama.cpp 설치 및 설정
 
-### 1. Ollama 설치
+### 1. llama.cpp 설치
 
-# Ollama 공식 사이트에서 설치 프로그램 다운로드
-# https://ollama.ai/download
-
-### 2. Ollama 서버 실행
-
-설치 후 Ollama 서버가 자동으로 실행됩니다. 수동으로 실행하려면:
+Termux 기준:
 
 ```bash
-ollama serve
+pkg install llama-cpp
 ```
 
-기본적으로 `http://localhost:11434`에서 실행됩니다.
+다른 환경에서는 소스 빌드 또는 릴리스 바이너리를 사용합니다. `llama-server` 바이너리가 있으면 됩니다.
 
-### 3. Vision 모델 다운로드
+### 2. Vision 모델 다운로드
 
-이 프로그램은 Vision 모델이 필요합니다. 예를 들어:
+이 프로그램은 Vision(멀티모달) 모델이 필요합니다. 본 저장소는 아래 모델로 검증되었습니다:
+
+- 모델(GGUF): `Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf`
+- 비전 프로젝터(mmproj): `mmproj-Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-f16.gguf`
 
 ```bash
-# Qwen3-VL 모델 다운로드 (4B 버전)
-ollama pull qwen3-vl:4b
-
+mkdir -p models && cd models
+BASE=https://huggingface.co/HauhauCS/Qwen3.5-2B-Uncensored-HauhauCS-Aggressive/resolve/main
+curl -L -O "$BASE/Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf"
+curl -L -O "$BASE/mmproj-Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-f16.gguf"
 ```
-추천 모델
-qwen3-vl:2b
-qwen3-vl:4b
-qwen3-vl:8b
 
-### 4. 모델 확인
+### 3. llama-server 실행
 
-다운로드한 모델을 확인하려면:
+모델과 mmproj를 함께 로드하여 OpenAI 호환 서버를 실행합니다. 기본 포트는 `8080`입니다.
 
 ```bash
-ollama list
+llama-server \
+  -m models/Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf \
+  --mmproj models/mmproj-Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-f16.gguf \
+  --host 127.0.0.1 --port 8080
 ```
 
+`http://localhost:8080/v1/chat/completions` (OpenAI 호환) 엔드포인트를 사용합니다.
 
 ### 실행 파일 사용
 
-이미 빌드된 `image-classificator.exe` 파일이 있다면 바로 실행할 수 있습니다.
+`llama-server`가 실행 중인 상태에서 빌드된 실행 파일을 실행하면 됩니다:
 
+```bash
+go build -o image-classificator .
+./image-classificator            # 기본 config.json 사용
+./image-classificator my.json    # 다른 설정 파일 지정
+```
 
 ## 설정 파일 설명
 
@@ -66,10 +71,10 @@ ollama list
 |------|------|------|--------|
 | `source_path` | 분류할 이미지가 있는 경로 | ✅ | - |
 | `destination_path` | 분류된 이미지를 이동할 기본 경로 | ✅ | - |
-| `model` | 사용할 Ollama 모델명 (예: `qwen3-vl:4b`) | ✅ | - |
+| `model` | 모델 라벨명 (llama-server는 로드한 단일 모델을 사용하므로 참고용) | ✅ | - |
 | `prompt_file` | 프롬프트 파일 경로 | ❌ | `prompt.txt` |
 | `animation_category` | 애니메이션 파일로 분류할 카테고리명 | ❌ | `animation` |
-| `ollama_base_url` | Ollama 서버 URL | ❌ | `http://localhost:11434` |
+| `llama_base_url` | llama-server URL | ❌ | `http://localhost:8080` |
 | `error_path` | 에러 발생 시 이미지를 이동할 경로 | ❌ | `{destination_path}/error` |
 | `valid_categories` | 유효한 카테고리 목록 | ❌ | 모든 카테고리 허용 |
 
@@ -96,38 +101,27 @@ ollama list
 
 ## 문제 해결
 
-### Ollama 연결 오류
+### llama-server 연결 오류
 
 **오류**: `API 호출 실패: connection refused`
 
 **해결 방법**:
-1. Ollama 서버가 실행 중인지 확인:
-   ```bash
-   ollama serve
-   ```
-2. `ollama_base_url` 설정이 올바른지 확인
-3. 방화벽이 포트 11434를 차단하지 않는지 확인
+1. `llama-server`가 실행 중인지 확인
+2. `llama_base_url` 설정이 올바른지 확인 (기본 `http://localhost:8080`)
+3. 방화벽이 포트 8080을 차단하지 않는지 확인
 
-### 모델 로드 오류
-
-**오류**: `model runner has unexpectedly stopped`
+### 모델/이미지 인식 오류
 
 **해결 방법**:
-1. 모델이 올바르게 다운로드되었는지 확인:
-   ```bash
-   ollama list
-   ```
-2. 모델명이 `config.json`의 `model` 필드와 일치하는지 확인
+1. `--mmproj` 인자로 비전 프로젝터 파일을 함께 로드했는지 확인 (없으면 이미지를 인식하지 못함)
+2. 모델과 mmproj 파일 경로가 올바른지 확인
 3. 시스템 리소스(메모리, 디스크 공간) 확인
-4. 해당 이미지는 자동으로 에러 폴더로 이동됩니다
+4. 분류에 실패한 이미지는 자동으로 에러 폴더로 이동됩니다
 
 ### API 오류 (상태 코드: 500)
 
-**오류**: `API 오류 (상태 코드: 500)`
-
 **해결 방법**:
-1. Ollama 서버 로그 확인
+1. `llama-server` 로그 확인
 2. 모델이 메모리 부족으로 중단되었을 수 있음
-3. 더 작은 모델 사용 고려 (예: `qwen3-vl:4b` → `qwen3-vl:2b`)
+3. 더 작은 양자화(quant) 사용 고려 (예: Q6_K → Q4_K_M)
 4. 해당 이미지는 자동으로 에러 폴더로 이동됩니다
-

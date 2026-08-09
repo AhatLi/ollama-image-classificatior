@@ -1,10 +1,10 @@
 {
   "source_path": "./",
   "destination_path": "./category",
-  "model": "qwen3-vl:4b",
+  "model": "Qwen3.5-2B-Uncensored-HauhauCS-Aggressive-Q4_K_M",
   "prompt_file": "prompt.txt",
   "animation_category": "animation",
-  "ollama_base_url": "http://localhost:11434",
+  "llama_base_url": "http://localhost:8080",
   "valid_categories": [
     "illustration",
     "nsfw_2d",
@@ -23,4 +23,3 @@
     "others"
   ]
 }
-
