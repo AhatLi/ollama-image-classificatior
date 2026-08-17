@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // LlamaClient llama.cpp (llama-server) API 클라이언트
@@ -78,10 +79,23 @@ type ImageURL struct {
 
 // ChatRequest llama-server(OpenAI 호환) 요청 구조체
 type ChatRequest struct {
-	Model       string        `json:"model"`
-	Messages    []ChatMessage `json:"messages"`
-	Stream      bool          `json:"stream"`
-	Temperature float64       `json:"temperature"`
+	Model          string          `json:"model"`
+	Messages       []ChatMessage   `json:"messages"`
+	Stream         bool            `json:"stream"`
+	Temperature    float64         `json:"temperature"`
+	MaxTokens      int             `json:"max_tokens,omitempty"`
+	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
+}
+
+type ResponseFormat struct {
+	Type       string      `json:"type"`
+	JSONSchema *JSONSchema `json:"json_schema,omitempty"`
+}
+
+type JSONSchema struct {
+	Name   string                 `json:"name"`
+	Strict bool                   `json:"strict"`
+	Schema map[string]interface{} `json:"schema"`
 }
 
 // ChatResponse llama-server(OpenAI 호환) 응답 구조체
@@ -123,6 +137,21 @@ func (lc *LlamaClient) ClassifyImage(imagePath string) (string, error) {
 		},
 	}
 
+	// enforce JSON schema output (category enum) to stop model rambling
+	if lc.validCategories != nil {
+		enum := make([]string, 0, len(lc.validCategories))
+		for cat := range lc.validCategories {
+			enum = append(enum, cat)
+		}
+		reqBody.ResponseFormat = &ResponseFormat{Type: "json_schema", JSONSchema: &JSONSchema{Name: "category", Strict: true, Schema: map[string]interface{}{
+			"type":                 "object",
+			"properties":           map[string]interface{}{"category": map[string]interface{}{"type": "string", "enum": enum}},
+			"required":             []string{"category"},
+			"additionalProperties": false,
+		}}}
+	}
+	reqBody.MaxTokens = 40
+
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("요청 생성 실패: %w", err)
@@ -130,7 +159,15 @@ func (lc *LlamaClient) ClassifyImage(imagePath string) (string, error) {
 
 	// API 호출 (OpenAI 호환 엔드포인트)
 	url := fmt.Sprintf("%s/v1/chat/completions", lc.baseURL)
-	resp, err := lc.client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	var resp *http.Response
+	for attempt := 0; attempt < 12; attempt++ {
+		resp, err = lc.client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+		if err == nil {
+			break
+		}
+		// llama-server may be restarting (memory watchdog); wait and retry
+		time.Sleep(10 * time.Second)
+	}
 	if err != nil {
 		return "", fmt.Errorf("API 호출 실패: %w", err)
 	}

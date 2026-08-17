@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 func main() {
@@ -34,6 +35,20 @@ func main() {
 	fmt.Printf("llama.cpp Base URL: %s\n\n", config.LlamaBaseURL)
 
 	// llama.cpp 클라이언트 생성
+	// launch and supervise llama-server (auto-restart on high system memory)
+	var llamaSrv *LlamaServer
+	if config.LlamaModel != "" {
+		llamaSrv = NewLlamaServer(config)
+		if err := llamaSrv.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "error: llama-server start failed: %v\n", err)
+			os.Exit(1)
+		}
+		defer llamaSrv.Stop()
+		stopMon := make(chan struct{})
+		defer close(stopMon)
+		go llamaSrv.MonitorMemory(config.MemThresholdPct, time.Duration(config.MonitorIntervalSec)*time.Second, stopMon)
+	}
+
 	llamaClient := NewLlamaClient(config.LlamaBaseURL, config.Model, config.Prompt, config.ValidCategories)
 
 	// 이미지 처리기 생성

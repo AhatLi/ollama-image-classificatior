@@ -5,19 +5,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config 설정 파일 구조체
 type Config struct {
-	SourcePath        string   `json:"source_path"`
-	DestinationPath   string   `json:"destination_path"`
-	Model             string   `json:"model"`
-	PromptFile        string   `json:"prompt_file"`
-	AnimationCategory string   `json:"animation_category"`
-	ValidCategories   []string `json:"valid_categories"`
-	LlamaBaseURL      string   `json:"llama_base_url"`
-	ErrorPath         string   `json:"error_path"` // 에러 폴더 경로 (선택적, 없으면 destination_path/error 사용)
-	Prompt            string   // 내부 사용용 (파일에서 읽은 내용)
+	SourcePath         string   `json:"source_path"`
+	DestinationPath    string   `json:"destination_path"`
+	Model              string   `json:"model"`
+	PromptFile         string   `json:"prompt_file"`
+	AnimationCategory  string   `json:"animation_category"`
+	ValidCategories    []string `json:"valid_categories"`
+	LlamaBaseURL       string   `json:"llama_base_url"`
+	LlamaServerBin     string   `json:"llama_server_bin"`
+	LlamaModel         string   `json:"llama_model"`
+	LlamaMmproj        string   `json:"llama_mmproj"`
+	LlamaHost          string   `json:"llama_host"`
+	LlamaPort          int      `json:"llama_port"`
+	LlamaCtxSize       int      `json:"llama_ctx_size"`
+	LlamaExtraArgs     []string `json:"llama_extra_args"`
+	MemThresholdPct    float64  `json:"mem_threshold_percent"`
+	MonitorIntervalSec int      `json:"monitor_interval_sec"`
+	ErrorPath          string   `json:"error_path"` // 에러 폴더 경로 (선택적, 없으면 destination_path/error 사용)
+	Prompt             string   // 내부 사용용 (파일에서 읽은 내용)
 }
 
 // LoadConfig 설정 파일을 로드합니다
@@ -54,6 +64,33 @@ func LoadConfig(configPath string) (*Config, error) {
 	if config.LlamaBaseURL == "" {
 		config.LlamaBaseURL = "http://localhost:8080"
 	}
+	if config.LlamaServerBin == "" {
+		config.LlamaServerBin = "llama-server"
+	}
+	if config.LlamaHost == "" {
+		config.LlamaHost = "127.0.0.1"
+	}
+	if config.LlamaPort == 0 {
+		config.LlamaPort = 8080
+	}
+	if config.LlamaCtxSize == 0 {
+		config.LlamaCtxSize = 16384
+	}
+	if config.MemThresholdPct == 0 {
+		config.MemThresholdPct = 85
+	}
+	if config.MonitorIntervalSec == 0 {
+		config.MonitorIntervalSec = 15
+	}
+	if config.LlamaModel == "" || config.LlamaMmproj == "" {
+		m, mm := autodetectModels("models")
+		if config.LlamaModel == "" {
+			config.LlamaModel = m
+		}
+		if config.LlamaMmproj == "" {
+			config.LlamaMmproj = mm
+		}
+	}
 
 	// 기본 에러 폴더 경로 설정 (지정되지 않은 경우 destination_path/error 사용)
 	if config.ErrorPath == "" {
@@ -73,4 +110,30 @@ func LoadConfig(configPath string) (*Config, error) {
 	config.Prompt = "%s\n" + string(promptData)
 
 	return &config, nil
+}
+
+// autodetectModels finds a GGUF model and its mmproj in dir (e.g. "models").
+func autodetectModels(dir string) (model string, mmproj string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", ""
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		low := strings.ToLower(name)
+		if !strings.HasSuffix(low, ".gguf") {
+			continue
+		}
+		if strings.Contains(low, "mmproj") {
+			if mmproj == "" {
+				mmproj = filepath.Join(dir, name)
+			}
+		} else if model == "" {
+			model = filepath.Join(dir, name)
+		}
+	}
+	return model, mmproj
 }
