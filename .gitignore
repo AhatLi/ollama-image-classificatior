@@ -3,3 +3,5 @@ image-classificator
 *.log
 restore.json
 *.bak
+*.new
+image-classificator.new
