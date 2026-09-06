@@ -8,7 +8,23 @@ import (
 	_ "time/tzdata" // TZ 환경변수(예: Asia/Seoul)를 zoneinfo 없는 환경(Termux)에서도 적용
 )
 
+// applyTZ TZ 환경변수를 time.Local에 적용합니다.
+// Android(Termux)용 Go 런타임은 TZ를 무시하고 항상 UTC를 쓰기 때문에 직접 로드합니다.
+func applyTZ() {
+	tz := os.Getenv("TZ")
+	if tz == "" {
+		return
+	}
+	if loc, err := time.LoadLocation(tz); err == nil {
+		time.Local = loc
+	} else {
+		fmt.Printf("경고: TZ=%q 적용 실패: %v\n", tz, err)
+	}
+}
+
 func main() {
+	applyTZ()
+
 	// 설정 파일 경로 (기본값: config.json)
 	configPath := "config.json"
 	if len(os.Args) > 1 {
