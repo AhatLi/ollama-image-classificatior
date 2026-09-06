@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +55,10 @@ func (s *LlamaServer) Start() error {
 }
 
 func (s *LlamaServer) startLocked() error {
+	// 이전 실행(또는 수동 kill 뒤 정리 중인) llama-server가 포트를 쥐고 있으면 새 서버는 바인드에 실패하고,
+	// 헬스체크는 옛 서버에 통과해 버려서 요청이 응답 없는 옛 서버로 가 멈춘다. 먼저 정리한다.
+	s.ensurePortFree()
+
 	args := []string{"-m", s.model}
 	if s.mmproj != "" {
 		args = append(args, "--mmproj", s.mmproj)
@@ -87,6 +93,68 @@ func (s *LlamaServer) startLocked() error {
 	}
 	fmt.Println("[llama-server] healthy")
 	return nil
+}
+
+// portInUse는 host:port에 무언가 리슨 중이면 true.
+func (s *LlamaServer) portInUse() bool {
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(s.host, strconv.Itoa(s.port)), 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// killStaleServers는 우리 자식이 아닌 llama-server 프로세스(같은 모델 파일을 쓰는)를 SIGKILL 한다.
+// /proc을 훑으므로 Linux/Android 전용이며, 실패는 무시한다.
+func (s *LlamaServer) killStaleServers() int {
+	self := os.Getpid()
+	own := 0
+	if s.cmd != nil && s.cmd.Process != nil {
+		own = s.cmd.Process.Pid
+	}
+	modelBase := filepath.Base(s.model)
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return 0
+	}
+	killed := 0
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || pid == self || pid == own {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join("/proc", e.Name(), "cmdline"))
+		if err != nil || len(raw) == 0 {
+			continue
+		}
+		cmdline := strings.ReplaceAll(string(raw), "\x00", " ")
+		if !strings.Contains(cmdline, "llama-server") || !strings.Contains(cmdline, modelBase) {
+			continue
+		}
+		fmt.Printf("[llama-server] stale process pid=%d found -> kill\n", pid)
+		_ = syscall.Kill(-pid, syscall.SIGKILL) // 프로세스 그룹 우선
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		killed++
+	}
+	return killed
+}
+
+// ensurePortFree는 포트가 비기를 기다리고, 필요하면 stale llama-server를 정리한다.
+func (s *LlamaServer) ensurePortFree() {
+	if !s.portInUse() {
+		return
+	}
+	fmt.Printf("[llama-server] port %d is still in use; cleaning up stale server(s)...\n", s.port)
+	s.killStaleServers()
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if !s.portInUse() {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	fmt.Printf("[llama-server] warning: port %d still in use after 30s; starting anyway\n", s.port)
 }
 
 func (s *LlamaServer) waitHealthy(timeout time.Duration) error {
