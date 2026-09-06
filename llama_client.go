@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,7 +25,9 @@ type LlamaClient struct {
 }
 
 // NewLlamaClient 새로운 llama.cpp 클라이언트를 생성합니다
-func NewLlamaClient(baseURL, model, prompt string, validCategories []string) *LlamaClient {
+// requestTimeout은 요청 1회의 전체 타임아웃입니다 (0이면 무제한). llama-server가 응답 없이 멈추면
+// 이 시간 뒤 실패로 처리되어 다음 이미지로 넘어갑니다.
+func NewLlamaClient(baseURL, model, prompt string, validCategories []string, requestTimeout time.Duration) *LlamaClient {
 	if baseURL == "" {
 		baseURL = "http://localhost:8080"
 	}
@@ -49,7 +52,7 @@ func NewLlamaClient(baseURL, model, prompt string, validCategories []string) *Ll
 		baseURL:         baseURL,
 		model:           model,
 		prompt:          prompt,
-		client:          &http.Client{},
+		client:          &http.Client{Timeout: requestTimeout},
 		validCategories: categoryMap,
 	}
 }
@@ -102,7 +105,8 @@ type JSONSchema struct {
 type ChatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
 		} `json:"message"`
 	} `json:"choices"`
 }
@@ -119,7 +123,7 @@ func (lc *LlamaClient) ClassifyImage(imagePath string) (string, error) {
 	}
 
 	// data URI 생성 (llama-server 멀티모달 입력 형식)
-	dataURI := fmt.Sprintf("data:%s;base64,%s", mimeTypeForImage(imagePath), imageBase64)
+	dataURI := "data:image/jpeg;base64," + imageBase64
 
 	// 요청 생성
 	reqBody := ChatRequest{
@@ -137,93 +141,99 @@ func (lc *LlamaClient) ClassifyImage(imagePath string) (string, error) {
 		},
 	}
 
-	// enforce JSON schema output (category enum) to stop model rambling
-	if lc.validCategories != nil {
-		enum := make([]string, 0, len(lc.validCategories))
-		for cat := range lc.validCategories {
-			enum = append(enum, cat)
-		}
-		reqBody.ResponseFormat = &ResponseFormat{Type: "json_schema", JSONSchema: &JSONSchema{Name: "category", Strict: true, Schema: map[string]interface{}{
-			"type":                 "object",
-			"properties":           map[string]interface{}{"category": map[string]interface{}{"type": "string", "enum": enum}},
-			"required":             []string{"category"},
-			"additionalProperties": false,
-		}}}
-	}
-	reqBody.MaxTokens = 40
+	// no strict json_schema: this is a reasoning model (<think>...</think>);
+	// a grammar forcing '{' first yields empty output.
+	reqBody.MaxTokens = 512
 
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("요청 생성 실패: %w", err)
-	}
-
-	// API 호출 (OpenAI 호환 엔드포인트)
 	url := fmt.Sprintf("%s/v1/chat/completions", lc.baseURL)
-	var resp *http.Response
-	for attempt := 0; attempt < 12; attempt++ {
-		resp, err = lc.client.Post(url, "application/json", bytes.NewBuffer(jsonData))
-		if err == nil {
-			break
+	var lastErr error
+	// retry the whole request; empty/invalid responses happen intermittently with this
+	// vision build, and temperature=0 is deterministic, so vary temp across attempts.
+	for outer := 0; outer < 3; outer++ {
+		reqBody.Temperature = float64(outer) * 0.4
+		jsonData, merr := json.Marshal(reqBody)
+		if merr != nil {
+			return "", fmt.Errorf("request marshal failed: %w", merr)
 		}
-		// llama-server may be restarting (memory watchdog); wait and retry
-		time.Sleep(10 * time.Second)
+		if outer > 0 {
+			time.Sleep(5 * time.Second)
+		}
+		var resp *http.Response
+		var perr error
+		for attempt := 0; attempt < 6; attempt++ {
+			resp, perr = lc.client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+			if perr == nil {
+				break
+			}
+			time.Sleep(10 * time.Second) // llama-server may be restarting
+		}
+		if perr != nil {
+			lastErr = fmt.Errorf("API call failed: %w", perr)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			lastErr = fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+			continue
+		}
+		var chatResp ChatResponse
+		derr := json.NewDecoder(resp.Body).Decode(&chatResp)
+		resp.Body.Close()
+		if derr != nil {
+			lastErr = fmt.Errorf("response decode failed: %w", derr)
+			continue
+		}
+		if len(chatResp.Choices) == 0 {
+			lastErr = fmt.Errorf("no choices in response")
+			continue
+		}
+		msg := chatResp.Choices[0].Message
+		raw := strings.TrimSpace(msg.Content)
+		if raw == "" {
+			raw = strings.TrimSpace(msg.ReasoningContent)
+		}
+		raw = stripThink(raw)
+		category := ""
+		if js := extractJSON(raw); js != "" {
+			var cr ClassifyResponse
+			if json.Unmarshal([]byte(js), &cr) == nil {
+				category = cleanCategoryName(cr.Category)
+			}
+		}
+		if !lc.isValidCategory(category) {
+			category = lc.findCategoryInText(raw)
+		}
+		if lc.isValidCategory(category) {
+			return category, nil
+		}
+		lastErr = fmt.Errorf("no valid category (resp: %q)", firstN(raw, 200))
+		continue
 	}
-	if err != nil {
-		return "", fmt.Errorf("API 호출 실패: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API 오류 (상태 코드: %d): %s", resp.StatusCode, string(body))
-	}
-
-	// 응답 파싱
-	var chatResp ChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
-		return "", fmt.Errorf("응답 파싱 실패: %w", err)
-	}
-
-	if len(chatResp.Choices) == 0 {
-		return "", fmt.Errorf("응답에 choices가 없습니다")
-	}
-
-	// JSON 응답 추출
-	responseText := chatResp.Choices[0].Message.Content
-	responseText = strings.TrimSpace(responseText)
-
-	// JSON 부분만 추출 (마크다운 코드 블록 제거)
-	responseText = extractJSON(responseText)
-
-	// 카테고리 파싱
-	var classifyResp ClassifyResponse
-	if err := json.Unmarshal([]byte(responseText), &classifyResp); err != nil {
-		return "", fmt.Errorf("카테고리 파싱 실패: %w (응답: %s)", err, responseText)
-	}
-
-	if classifyResp.Category == "" {
-		return "", fmt.Errorf("카테고리가 비어있습니다 (응답: %s)", responseText)
-	}
-
-	// 카테고리 이름 정리 (콜론 이후 설명 제거)
-	category := cleanCategoryName(classifyResp.Category)
-
-	// 카테고리 이름 검증
-	if !lc.isValidCategory(category) {
-		return "", fmt.Errorf("유효하지 않은 카테고리: %s (원본: %s)", category, classifyResp.Category)
-	}
-
-	return category, nil
+	return "", lastErr
 }
 
 // encodeImageToBase64 이미지를 base64로 인코딩합니다
 func encodeImageToBase64(imagePath string) (string, error) {
+	// Resize to <=448px and convert to JPEG via ffmpeg. Massively speeds up vision
+	// encoding and handles webp/gif that the clip loader may otherwise reject.
+	tmp, terr := os.CreateTemp("", "clf*.jpg")
+	if terr == nil {
+		name := tmp.Name()
+		tmp.Close()
+		defer os.Remove(name)
+		cmd := exec.Command("ffmpeg", "-y", "-loglevel", "error", "-i", imagePath,
+			"-vf", "scale=448:448:force_original_aspect_ratio=decrease", "-frames:v", "1", name)
+		if cmd.Run() == nil {
+			if data, rerr := os.ReadFile(name); rerr == nil && len(data) > 0 {
+				return base64.StdEncoding.EncodeToString(data), nil
+			}
+		}
+	}
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		return "", err
 	}
-
-	// base64 인코딩
 	return base64.StdEncoding.EncodeToString(data), nil
 }
 
@@ -284,4 +294,40 @@ func (lc *LlamaClient) isValidCategory(category string) bool {
 		return true
 	}
 	return lc.validCategories[category]
+}
+
+func stripThink(s string) string {
+	for {
+		i := strings.Index(s, "<think>")
+		if i < 0 {
+			break
+		}
+		j := strings.Index(s, "</think>")
+		if j < 0 {
+			s = s[:i]
+			break
+		}
+		s = s[:i] + s[j+len("</think>"):]
+	}
+	return strings.TrimSpace(s)
+}
+
+func (lc *LlamaClient) findCategoryInText(s string) string {
+	low := strings.ToLower(s)
+	best := ""
+	bestPos := -1
+	for cat := range lc.validCategories {
+		if p := strings.LastIndex(low, cat); p > bestPos {
+			bestPos = p
+			best = cat
+		}
+	}
+	return best
+}
+
+func firstN(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }

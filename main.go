@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
+	_ "time/tzdata" // TZ 환경변수(예: Asia/Seoul)를 zoneinfo 없는 환경(Termux)에서도 적용
 )
 
 func main() {
@@ -28,11 +30,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("검사 경로: %s\n", config.SourcePath)
+	fmt.Printf("검사 경로(%d개, 라운드로빈 %d개씩):\n  %s\n", len(config.SourcePaths), config.BatchSize,
+		strings.Join(config.SourcePaths, "\n  "))
 	fmt.Printf("이동 경로: %s\n", config.DestinationPath)
 	fmt.Printf("에러 폴더: %s\n", config.ErrorPath)
 	fmt.Printf("모델명: %s\n", config.Model)
-	fmt.Printf("llama.cpp Base URL: %s\n\n", config.LlamaBaseURL)
+	fmt.Printf("llama.cpp Base URL: %s\n", config.LlamaBaseURL)
+	if config.WatchMode {
+		fmt.Printf("watch 모드: 켬 (비어 있으면 %d초마다 재검사, 종료하지 않음)\n", config.PollIntervalSec)
+	} else {
+		fmt.Println("watch 모드: 끔 (모두 처리하면 종료)")
+	}
+	fmt.Println()
 
 	// llama.cpp 클라이언트 생성
 	// launch and supervise llama-server (auto-restart on high system memory)
@@ -49,13 +58,14 @@ func main() {
 		go llamaSrv.MonitorMemory(config.MemThresholdPct, time.Duration(config.MonitorIntervalSec)*time.Second, stopMon)
 	}
 
-	llamaClient := NewLlamaClient(config.LlamaBaseURL, config.Model, config.Prompt, config.ValidCategories)
+	llamaClient := NewLlamaClient(config.LlamaBaseURL, config.Model, config.Prompt, config.ValidCategories,
+		time.Duration(config.RequestTimeoutSec)*time.Second)
 
 	// 이미지 처리기 생성
 	processor := NewImageProcessor(config, llamaClient)
 
-	// 모든 이미지 처리
-	if err := processor.ProcessAllImages(); err != nil {
+	// 모든 소스를 라운드로빈으로 처리 (watch 모드면 여기서 계속 돈다)
+	if err := processor.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "오류: %v\n", err)
 		os.Exit(1)
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ImageProcessor 이미지 처리기
@@ -41,7 +42,9 @@ func (ip *ImageProcessor) IsImageFile(filePath string) bool {
 	return ip.imageExts[ext]
 }
 
-// ScanImages 경로에서 이미지 파일을 스캔합니다 (하위 경로 제외)
+// ScanImages 경로에서 이미지 파일을 스캔합니다 (하위 경로 제외).
+// 아직 쓰는 중일 수 있는 파일(min_file_age_sec 이내 수정)은 건너뜁니다.
+// 결과는 파일명 순으로 정렬되어 있습니다 (os.ReadDir 보장).
 func (ip *ImageProcessor) ScanImages(rootPath string) ([]string, error) {
 	var images []string
 
@@ -50,6 +53,9 @@ func (ip *ImageProcessor) ScanImages(rootPath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("디렉토리 읽기 실패: %w", err)
 	}
+
+	minAge := time.Duration(ip.config.MinFileAgeSec) * time.Second
+	now := time.Now()
 
 	for _, entry := range entries {
 		// 디렉토리는 건너뛰기
@@ -61,9 +67,22 @@ func (ip *ImageProcessor) ScanImages(rootPath string) ([]string, error) {
 		filePath := filepath.Join(rootPath, entry.Name())
 
 		// 이미지 파일인지 확인
-		if ip.IsImageFile(filePath) {
-			images = append(images, filePath)
+		if !ip.IsImageFile(filePath) {
+			continue
 		}
+
+		// 방금 생성/수정된 파일은 다운로드가 끝나지 않았을 수 있으므로 다음 라운드에 처리
+		if minAge > 0 {
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			if now.Sub(info.ModTime()) < minAge {
+				continue
+			}
+		}
+
+		images = append(images, filePath)
 	}
 
 	return images, nil
@@ -158,25 +177,75 @@ func (ip *ImageProcessor) ProcessImage(imagePath string) error {
 	return nil
 }
 
-// ProcessAllImages 모든 이미지를 처리합니다
-func (ip *ImageProcessor) ProcessAllImages() error {
-	// 이미지 스캔
-	fmt.Printf("이미지 스캔 중: %s\n", ip.config.SourcePath)
-	images, err := ip.ScanImages(ip.config.SourcePath)
+// processBatch 소스 하나에서 최대 batch_size개의 이미지를 처리하고 처리한 개수를 돌려줍니다.
+// 소스 폴더가 아직 없으면(다운로더가 만들기 전) 0을 돌려줍니다.
+func (ip *ImageProcessor) processBatch(source string) (int, error) {
+	images, err := ip.ScanImages(source)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "no such file") {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if len(images) == 0 {
+		return 0, nil
 	}
 
-	fmt.Printf("총 %d개의 이미지를 찾았습니다.\n\n", len(images))
+	total := len(images)
+	if total > ip.config.BatchSize {
+		images = images[:ip.config.BatchSize]
+	}
+	fmt.Printf("\n=== [%s] 대기 %d개 중 %d개 처리 ===\n", filepath.Base(source), total, len(images))
 
-	// 각 이미지 처리
 	for i, imagePath := range images {
-		fmt.Printf("[%d/%d] ", i+1, len(images))
+		start := time.Now()
+		fmt.Printf("[%s %d/%d] (%s) ", filepath.Base(source), i+1, len(images), start.Format("2006-01-02 15:04:05"))
 		if err := ip.ProcessImage(imagePath); err != nil {
-			fmt.Printf("오류: %v\n", err)
+			fmt.Printf("error: %v (took %.1fs)\n", err, time.Since(start).Seconds())
 			continue
 		}
+		fmt.Printf("  took %.1fs\n", time.Since(start).Seconds())
 	}
+	return len(images), nil
+}
 
-	return nil
+// Run 모든 소스 경로를 라운드로빈으로 순회하며 이미지를 처리합니다.
+// 소스마다 batch_size개씩 처리하고 다음 소스로 넘어가므로, 이미지가 계속 들어오는 소스가 있어도
+// 다른 소스가 영원히 뒤로 밀리지 않습니다.
+// watch_mode가 true면 처리할 이미지가 없어도 종료하지 않고 poll_interval_sec마다 다시 검사합니다.
+func (ip *ImageProcessor) Run() error {
+	round := 0
+	for {
+		round++
+		processed := 0
+		for _, source := range ip.config.SourcePaths {
+			n, err := ip.processBatch(source)
+			if err != nil {
+				fmt.Printf("경고: %s 처리 중 오류: %v\n", source, err)
+				continue
+			}
+			processed += n
+		}
+
+		if processed > 0 {
+			continue
+		}
+		if !ip.config.WatchMode {
+			return nil
+		}
+		// 처리할 이미지 없음: 잠시 대기 후 다시 스캔 (로그 과다 방지를 위해 가끔만 출력)
+		if round%20 == 1 {
+			fmt.Printf("[watch] (%s) 처리할 이미지 없음, %d초마다 재검사 중...\n",
+				time.Now().Format("2006-01-02 15:04:05"), ip.config.PollIntervalSec)
+		}
+		time.Sleep(time.Duration(ip.config.PollIntervalSec) * time.Second)
+	}
+}
+
+// ProcessAllImages 하위 호환용: 모든 소스를 한 번 순회합니다 (watch_mode 무시).
+func (ip *ImageProcessor) ProcessAllImages() error {
+	saved := ip.config.WatchMode
+	ip.config.WatchMode = false
+	defer func() { ip.config.WatchMode = saved }()
+	return ip.Run()
 }

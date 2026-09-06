@@ -10,7 +10,8 @@ import (
 
 // Config 설정 파일 구조체
 type Config struct {
-	SourcePath         string   `json:"source_path"`
+	SourcePath         string   `json:"source_path"`  // 단일 소스 경로 (하위 호환)
+	SourcePaths        []string `json:"source_paths"` // 여러 소스 경로 (라운드로빈으로 순회)
 	DestinationPath    string   `json:"destination_path"`
 	Model              string   `json:"model"`
 	PromptFile         string   `json:"prompt_file"`
@@ -27,7 +28,15 @@ type Config struct {
 	MemThresholdPct    float64  `json:"mem_threshold_percent"`
 	MonitorIntervalSec int      `json:"monitor_interval_sec"`
 	ErrorPath          string   `json:"error_path"` // 에러 폴더 경로 (선택적, 없으면 destination_path/error 사용)
-	Prompt             string   // 내부 사용용 (파일에서 읽은 내용)
+
+	// 연속 실행(watch) 관련
+	WatchMode         bool `json:"watch_mode"`          // true면 소스가 비어도 종료하지 않고 새 이미지를 기다림
+	BatchSize         int  `json:"batch_size"`          // 소스 하나에서 한 번에 처리할 최대 이미지 수 (다음 소스로 넘어감)
+	PollIntervalSec   int  `json:"poll_interval_sec"`   // 처리할 이미지가 없을 때 재검사 주기(초)
+	MinFileAgeSec     int  `json:"min_file_age_sec"`    // 이 시간(초) 안에 수정된 파일은 아직 다운로드 중으로 보고 건너뜀
+	RequestTimeoutSec int  `json:"request_timeout_sec"` // llama-server 요청 1회 타임아웃(초). 0이면 무제한
+
+	Prompt string // 내부 사용용 (파일에서 읽은 내용)
 }
 
 // LoadConfig 설정 파일을 로드합니다
@@ -42,9 +51,22 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("설정 파일 파싱 실패: %w", err)
 	}
 
-	if config.SourcePath == "" {
-		return nil, fmt.Errorf("source_path가 설정되지 않았습니다")
+	// source_path(단일)와 source_paths(복수)를 하나의 목록으로 합침 (중복 제거)
+	seen := make(map[string]bool)
+	var sources []string
+	for _, p := range append([]string{config.SourcePath}, config.SourcePaths...) {
+		p = strings.TrimSpace(p)
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		sources = append(sources, p)
 	}
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("source_path 또는 source_paths가 설정되지 않았습니다")
+	}
+	config.SourcePaths = sources
+	config.SourcePath = sources[0]
 
 	if config.DestinationPath == "" {
 		return nil, fmt.Errorf("destination_path가 설정되지 않았습니다")
@@ -90,6 +112,24 @@ func LoadConfig(configPath string) (*Config, error) {
 		if config.LlamaMmproj == "" {
 			config.LlamaMmproj = mm
 		}
+	}
+
+	// 연속 실행 기본값
+	if config.BatchSize <= 0 {
+		config.BatchSize = 100
+	}
+	if config.PollIntervalSec <= 0 {
+		config.PollIntervalSec = 30
+	}
+	if config.MinFileAgeSec < 0 {
+		config.MinFileAgeSec = 0
+	} else if config.MinFileAgeSec == 0 {
+		config.MinFileAgeSec = 3
+	}
+	if config.RequestTimeoutSec < 0 {
+		config.RequestTimeoutSec = 0
+	} else if config.RequestTimeoutSec == 0 {
+		config.RequestTimeoutSec = 300
 	}
 
 	// 기본 에러 폴더 경로 설정 (지정되지 않은 경우 destination_path/error 사용)

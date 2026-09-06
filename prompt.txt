@@ -15,6 +15,7 @@ game_screen: Screenshots of video games, including UI/HUD elements or gameplay.
 landscape: Scenery, nature, urban landscapes, or backgrounds without main characters.
 meme: Images with overlaid text intended for humor, internet memes, or reaction images.
 object: Photos focused on specific inanimate objects (e.g., cars, electronics, furniture).
+grotesque: Shock or disgusting images intended to repulse: feces/poop, vomit, corpses, dead bodies, gore, blood, severe wounds, mutilation, rotting matter, or swarms of insects (real or drawn). This category takes priority over meme, real_person, and others.
 others: Any image that completely fails to fit into the above categories.
 
 Constraint:

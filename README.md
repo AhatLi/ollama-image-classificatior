@@ -69,7 +69,8 @@ go build -o image-classificator .
 
 | 필드 | 설명 | 필수 | 기본값 |
 |------|------|------|--------|
-| `source_path` | 분류할 이미지가 있는 경로 | ✅ | - |
+| `source_path` | 분류할 이미지가 있는 경로 (단일) | ✅(둘 중 하나) | - |
+| `source_paths` | 분류할 이미지 경로 목록. 여러 개면 라운드로빈으로 순회 | ✅(둘 중 하나) | - |
 | `destination_path` | 분류된 이미지를 이동할 기본 경로 | ✅ | - |
 | `model` | 모델 라벨명 (llama-server는 로드한 단일 모델을 사용하므로 참고용) | ✅ | - |
 | `prompt_file` | 프롬프트 파일 경로 | ❌ | `prompt.txt` |
@@ -77,6 +78,32 @@ go build -o image-classificator .
 | `llama_base_url` | llama-server URL | ❌ | `http://localhost:8080` |
 | `error_path` | 에러 발생 시 이미지를 이동할 경로 | ❌ | `{destination_path}/error` |
 | `valid_categories` | 유효한 카테고리 목록 | ❌ | 모든 카테고리 허용 |
+| `watch_mode` | `true`면 처리할 이미지가 없어도 종료하지 않고 새 이미지를 기다림 | ❌ | `false` |
+| `batch_size` | 소스 하나에서 한 번에 처리할 최대 개수. 넘으면 다음 소스로 넘어감 | ❌ | `100` |
+| `poll_interval_sec` | watch 모드에서 처리할 이미지가 없을 때 재검사 주기(초) | ❌ | `30` |
+| `min_file_age_sec` | 이 시간(초) 안에 수정된 파일은 아직 다운로드 중으로 보고 건너뜀 | ❌ | `3` |
+| `request_timeout_sec` | llama-server 요청 1회 타임아웃(초). 멈춘 요청을 끊고 다음 이미지로 넘어감 | ❌ | `300` |
+| `llama_model` / `llama_mmproj` | 지정하면 프로그램이 llama-server를 직접 실행·감시함 | ❌ | `models/` 자동 탐색 |
+| `mem_threshold_percent` | 시스템 메모리 사용률이 이 값을 넘으면 llama-server 재시작 | ❌ | `85` |
+
+### 여러 소스 + 연속 실행 (다운로더와 함께 쓰기)
+
+이미지 다운로더가 여러 폴더에 계속 이미지를 내려받는 상황을 위한 설정 예시입니다.
+소스마다 `batch_size`개씩 처리하고 다음 소스로 넘어가므로, 한 폴더에 이미지가 계속 들어와도
+다른 폴더가 영원히 뒤로 밀리지 않습니다. `watch_mode`가 켜져 있으면 모두 처리한 뒤에도 종료하지 않고
+`poll_interval_sec`마다 다시 검사합니다.
+
+```json
+{
+  "source_paths": ["/path/dl/a", "/path/dl/b", "/path/dl/c"],
+  "destination_path": "/path/category",
+  "watch_mode": true,
+  "batch_size": 100,
+  "poll_interval_sec": 30,
+  "request_timeout_sec": 300
+}
+```
+
 
 ### prompt.txt
 

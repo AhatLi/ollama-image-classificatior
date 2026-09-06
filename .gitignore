@@ -1,3 +1,5 @@
 models/
 image-classificator
 *.log
+restore.json
+*.bak
