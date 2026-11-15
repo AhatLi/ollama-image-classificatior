@@ -36,8 +36,24 @@ type Config struct {
 	MinFileAgeSec     int  `json:"min_file_age_sec"`    // 이 시간(초) 안에 수정된 파일은 아직 다운로드 중으로 보고 건너뜀
 	RequestTimeoutSec int  `json:"request_timeout_sec"` // llama-server 요청 1회 타임아웃(초). 0이면 무제한
 
+	// 백엔드 선택: "llama"(기본, VLM으로 카테고리 판정 후 카테고리 폴더로 이동) 또는
+	// "tagger"(ONNX 태거로 점수만 기록하고 library_path/YYYY/MM/DD/ 로 이동)
+	Backend        string   `json:"backend"`
+	TaggerPort     int      `json:"tagger_port"`      // 태거 서비스 포트 (기본 8090)
+	TaggerThreads  int      `json:"tagger_threads"`   // onnxruntime 스레드 수 (기본 4)
+	TaggerPython   string   `json:"tagger_python"`    // 파이썬 실행 파일 (기본 "python")
+	TaggerScript   string   `json:"tagger_script"`    // 기본 "tagger/tagger_server.py"
+	TaggerModelDir string   `json:"tagger_model_dir"` // 기본 "models/tagger"
+	TaggerLabels   string   `json:"tagger_labels"`    // 기본 "tagger/labels/siglip_labels.json"
+	LibraryPath    string   `json:"library_path"`     // tagger 백엔드의 저장 루트
+	BackfillPaths  []string `json:"backfill_paths"`   // 옮기지 않고 메타만 채울 기존 폴더들 (재귀)
+	BackfillBatch  int      `json:"backfill_batch"`   // 소스가 비었을 때 한 번에 채울 장수 (기본 50)
+
 	Prompt string // 내부 사용용 (파일에서 읽은 내용)
 }
+
+// IsTagger tagger 백엔드 여부
+func (c *Config) IsTagger() bool { return c.Backend == "tagger" }
 
 // LoadConfig 설정 파일을 로드합니다
 func LoadConfig(configPath string) (*Config, error) {
@@ -68,13 +84,51 @@ func LoadConfig(configPath string) (*Config, error) {
 	config.SourcePaths = sources
 	config.SourcePath = sources[0]
 
-	if config.DestinationPath == "" {
-		return nil, fmt.Errorf("destination_path가 설정되지 않았습니다")
+	config.Backend = strings.ToLower(strings.TrimSpace(config.Backend))
+	if config.Backend == "" {
+		config.Backend = "llama"
+	}
+	if config.Backend != "llama" && config.Backend != "tagger" {
+		return nil, fmt.Errorf("backend는 \"llama\" 또는 \"tagger\"여야 합니다: %q", config.Backend)
 	}
 
-	// 기본 모델명 설정
-	if config.Model == "" {
-		return nil, fmt.Errorf("model이 설정되지 않았습니다")
+	if config.IsTagger() {
+		// tagger 백엔드: 판정 없이 library_path 아래 날짜 폴더로 옮기므로 destination_path/model/prompt가 필요 없다
+		if config.LibraryPath == "" {
+			return nil, fmt.Errorf("backend=tagger에는 library_path가 필요합니다")
+		}
+		if config.TaggerPort == 0 {
+			config.TaggerPort = 8090
+		}
+		if config.TaggerThreads <= 0 {
+			config.TaggerThreads = 4
+		}
+		if config.TaggerPython == "" {
+			config.TaggerPython = "python"
+		}
+		if config.TaggerScript == "" {
+			config.TaggerScript = "tagger/tagger_server.py"
+		}
+		if config.TaggerModelDir == "" {
+			config.TaggerModelDir = "models/tagger"
+		}
+		if config.TaggerLabels == "" {
+			config.TaggerLabels = "tagger/labels/siglip_labels.json"
+		}
+		if config.BackfillBatch <= 0 {
+			config.BackfillBatch = 50
+		}
+		if config.ErrorPath == "" {
+			config.ErrorPath = filepath.Join(config.LibraryPath, "_error")
+		}
+	} else {
+		if config.DestinationPath == "" {
+			return nil, fmt.Errorf("destination_path가 설정되지 않았습니다")
+		}
+		// 기본 모델명 설정
+		if config.Model == "" {
+			return nil, fmt.Errorf("model이 설정되지 않았습니다")
+		}
 	}
 
 	// 기본 애니메이션 카테고리 설정
@@ -135,6 +189,10 @@ func LoadConfig(configPath string) (*Config, error) {
 	// 기본 에러 폴더 경로 설정 (지정되지 않은 경우 destination_path/error 사용)
 	if config.ErrorPath == "" {
 		config.ErrorPath = filepath.Join(config.DestinationPath, "error")
+	}
+
+	if config.IsTagger() {
+		return &config, nil // 프롬프트는 llama 백엔드 전용
 	}
 
 	// 프롬프트 파일 읽기

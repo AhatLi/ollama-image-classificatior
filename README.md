@@ -152,3 +152,114 @@ go build -o image-classificator .
 2. 모델이 메모리 부족으로 중단되었을 수 있음
 3. 더 작은 양자화(quant) 사용 고려 (예: Q6_K → Q4_K_M)
 4. 해당 이미지는 자동으로 에러 폴더로 이동됩니다
+
+---
+
+## tagger 백엔드 (ONNX, 점수만 기록)
+
+`backend: "tagger"`로 설정하면 VLM(llama.cpp) 대신 가벼운 ONNX 모델 3개로 이미지를 처리합니다.
+분류기는 **판정을 하지 않고 점수와 태그만 기록**하며, 무엇을 nsfw로 볼지·어떤 카테고리로 볼지는
+보는 쪽(갤러리)이 이 점수로 필터링합니다. `backend`를 지정하지 않으면 기존 llama 방식 그대로 동작합니다.
+
+| 모델 | 역할 | 파일 (`models/tagger/`) |
+|---|---|---|
+| SigLIP 2 base/16-224 (vision) | 내용 카테고리·매체(실사/2D 등) zero-shot | `siglip2_vision.onnx` |
+| ViT NSFW 판별기 | 수위 점수(0~1) | `nsfw_vit.onnx` |
+| WD ViT 태거 v3 | 태그·캐릭터·rating | `wd_vit_v3.onnx`, `wd_vit_v3_tags.csv` |
+
+실측(Redmi K50 Ultra, 4스레드): 장당 2~3초, 태거 서비스 RSS 약 1.5GB.
+
+### 준비
+
+```bash
+pkg install python python-numpy python-pillow python-onnxruntime
+sh tagger/download_models.sh        # models/tagger/ 에 약 1.1GB
+go build -o image-classificator .
+```
+
+### 동작
+
+- **새 이미지**: `source_paths`의 이미지를 태깅 → `library_path/YYYY/MM/DD/`(처리 시각, KST)로 이동 →
+  그 폴더의 `.meta.jsonl`에 한 줄 기록. gif 등 애니메이션도 첫 프레임으로 태깅해 같은 곳에 둡니다.
+  같은 이름이 이미 있으면 `이름_1.확장자`처럼 번호를 붙입니다(덮어쓰지 않음).
+- **깨진 이미지**(열 수 없는 파일)는 `error_path`로 이동합니다. 태거 서비스가 죽었거나 응답이 없을 때는
+  파일을 옮기지 않고 서비스를 되살린 뒤 다시 시도합니다.
+- **backfill**: 소스에 처리할 것이 없을 때마다 `backfill_paths` 아래(재귀)의 기존 이미지 중 그 폴더
+  `.meta.jsonl`에 없는 것을 `backfill_batch`장씩 **옮기지 않고** 태깅해 메타만 채웁니다. 새 이미지가 들어오면
+  소스가 항상 우선입니다. 재시작해도 이미 기록된 파일은 건너뜁니다. `library_path`도 함께 훑어 메타가 빠진
+  파일을 채웁니다. 전부 끝나면 30분마다 새로 생긴 파일만 다시 확인합니다. `watch_mode: false`면 소스와
+  backfill을 모두 끝낸 뒤 종료합니다.
+- **태거 서비스**(`tagger/tagger_server.py`)는 분류기가 자식 프로세스로 띄우고, 죽으면 다시 띄웁니다.
+  로그는 `tagger-server.log`.
+
+### 설정 항목
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `backend` | `"llama"` | `"tagger"`로 지정하면 이 백엔드 사용 |
+| `library_path` | (필수) | 저장 루트. 아래에 `YYYY/MM/DD/` 폴더가 생김 |
+| `error_path` | `library_path/_error` | 열 수 없는 이미지를 옮길 곳 |
+| `backfill_paths` | `[]` | 메타만 채울 기존 폴더들 |
+| `backfill_batch` | `50` | 소스가 비었을 때 한 번에 채울 장수 |
+| `tagger_port` | `8090` | 태거 서비스 포트 (127.0.0.1) |
+| `tagger_threads` | `4` | onnxruntime 스레드 수 |
+| `tagger_python` | `"python"` | 파이썬 실행 파일 |
+| `tagger_script` | `tagger/tagger_server.py` | 서비스 스크립트 |
+| `tagger_model_dir` | `models/tagger` | 모델 디렉터리 |
+| `tagger_labels` | `tagger/labels/siglip_labels.json` | SigLIP 라벨 (같은 이름의 `.npz` 필요) |
+
+`source_paths`, `watch_mode`, `batch_size`, `poll_interval_sec`, `min_file_age_sec`, `request_timeout_sec`,
+`monitor_interval_sec`은 llama 백엔드와 같은 의미입니다. `destination_path`, `model`, `prompt_file`,
+`valid_categories`, `llama_*`는 tagger 백엔드에서 쓰지 않습니다.
+
+```json
+{
+  "backend": "tagger",
+  "source_paths": ["/path/dl/a", "/path/dl/b"],
+  "library_path": "/path/images/library",
+  "error_path": "/path/images/category/error",
+  "backfill_paths": ["/path/images/category"],
+  "watch_mode": true
+}
+```
+
+### 메타데이터 형식 (v1)
+
+이미지가 놓인 폴더마다 두 파일이 생깁니다.
+
+- `.meta.jsonl` — 한 줄에 이미지 하나, append-only. **같은 `file`이 여러 번 나오면 마지막 줄이 유효**합니다.
+- `.siglip.f16` — SigLIP 이미지 임베딩. float16 little-endian, 레코드당 768개(1536바이트), append-only.
+
+```json
+{"v":1,"file":"a.jpg","sha256":"..","bytes":48912,"w":554,"h":554,"ts":"2026-11-15T15:32:19+09:00","src":"mangall","animated":false,"content_top":[["animal",0.93],["meme",0.04],["object",0.01]],"medium":"photo","medium_p":0.99,"nsfw":0.02,"rating":"general","tags":[["cat",0.98]],"chars":[["name",0.97]],"emb":123,"models":"siglip2-b16-224+wd-vit-v3+nsfw-vit","labels":"7c5fba3793"}
+```
+
+| 필드 | 내용 |
+|---|---|
+| `ts` | 새 이미지는 처리 시각, backfill은 파일 수정 시각 (RFC3339, +09:00) |
+| `src` | 소스 폴더 이름. backfill은 빈 문자열 |
+| `content_top` | 내용 카테고리 상위 3개와 확률 (라벨의 `category` 그룹에서 `nsfw_*` 제외 후 softmax) |
+| `medium`, `medium_p` | 매체 1순위와 확률 (라벨의 `medium` 그룹) |
+| `nsfw` | NSFW 판별기 점수 0~1 |
+| `rating` | WD 태거의 수위 (general/sensitive/questionable/explicit) |
+| `tags` | WD 일반 태그, 0.35 이상, 확률 내림차순 |
+| `chars` | WD 캐릭터 태그, 0.85 이상 |
+| `emb` | `.siglip.f16` 안의 레코드 번호 |
+| `labels` | 점수를 낼 때 쓴 라벨 json의 해시 |
+
+태깅에 실패한 파일(backfill)은 `{"v":1,"file":"..","ts":"..","err":"..."}` 줄로 남겨 다시 시도하지 않습니다.
+
+### 라벨 문장을 바꿀 때 (rescore)
+
+내용 카테고리와 매체는 SigLIP이 "문장과 이미지의 유사도"로 정합니다. 문장을 고치려면:
+
+```bash
+# 1) (PC 등 torch가 있는 곳에서) tagger/make_siglip_labels.py 의 GROUPS를 고치고 실행
+python tagger/make_siglip_labels.py          # siglip_labels.npz / .json 생성
+# 2) 두 파일을 tagger/labels/ 에 넣고, 이미지 재처리 없이 저장된 임베딩으로 재계산
+python tagger/rescore.py /path/images/library /path/images/category [--dry-run]
+# 3) 분류기를 재시작하면 새 이미지에도 새 라벨이 적용됩니다
+```
+
+`rescore.py`는 `labels` 해시가 다른 줄만 `content_top`/`medium`/`medium_p`/`labels`를 다시 계산해
+갱신된 줄을 덧붙입니다. NSFW 점수와 WD 태그는 문장과 무관하므로 바뀌지 않습니다.

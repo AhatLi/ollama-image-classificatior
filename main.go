@@ -48,6 +48,15 @@ func main() {
 
 	fmt.Printf("검사 경로(%d개, 라운드로빈 %d개씩):\n  %s\n", len(config.SourcePaths), config.BatchSize,
 		strings.Join(config.SourcePaths, "\n  "))
+	if config.IsTagger() {
+		// ONNX 태거 백엔드: 판정 없이 점수만 기록 (tagger_processor.go)
+		if err := runTaggerBackend(config); err != nil {
+			fmt.Fprintf(os.Stderr, "오류: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("\n모든 이미지 처리가 완료되었습니다.")
+		return
+	}
 	fmt.Printf("이동 경로: %s\n", config.DestinationPath)
 	fmt.Printf("에러 폴더: %s\n", config.ErrorPath)
 	fmt.Printf("모델명: %s\n", config.Model)

@@ -1,0 +1,277 @@
+{
+ "model": "google/siglip2-base-patch16-224",
+ "logit_scale": 112.66889953613281,
+ "logit_bias": -16.771724700927734,
+ "rows": [
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of an animal"
+  },
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of a pet dog or cat"
+  },
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of wildlife"
+  },
+  {
+   "group": "category",
+   "label": "cosplay",
+   "prompt": "a photo of a person cosplaying an anime character"
+  },
+  {
+   "group": "category",
+   "label": "cosplay",
+   "prompt": "a cosplay photo"
+  },
+  {
+   "group": "category",
+   "label": "document",
+   "prompt": "a screenshot of a text document"
+  },
+  {
+   "group": "category",
+   "label": "document",
+   "prompt": "a screenshot of a chat conversation"
+  },
+  {
+   "group": "category",
+   "label": "document",
+   "prompt": "a scanned page of text"
+  },
+  {
+   "group": "category",
+   "label": "document",
+   "prompt": "a screenshot of a web page or news article"
+  },
+  {
+   "group": "category",
+   "label": "figure",
+   "prompt": "a photo of an anime figure"
+  },
+  {
+   "group": "category",
+   "label": "figure",
+   "prompt": "a photo of a plastic figurine or toy model"
+  },
+  {
+   "group": "category",
+   "label": "food",
+   "prompt": "a photo of food"
+  },
+  {
+   "group": "category",
+   "label": "food",
+   "prompt": "a photo of a meal on a plate"
+  },
+  {
+   "group": "category",
+   "label": "game_screen",
+   "prompt": "a screenshot of a video game"
+  },
+  {
+   "group": "category",
+   "label": "game_screen",
+   "prompt": "video game gameplay screenshot with user interface"
+  },
+  {
+   "group": "category",
+   "label": "grotesque",
+   "prompt": "a gross disgusting photo"
+  },
+  {
+   "group": "category",
+   "label": "grotesque",
+   "prompt": "a gory or disturbing image"
+  },
+  {
+   "group": "category",
+   "label": "illustration",
+   "prompt": "an anime illustration"
+  },
+  {
+   "group": "category",
+   "label": "illustration",
+   "prompt": "a digital drawing of an anime character"
+  },
+  {
+   "group": "category",
+   "label": "illustration",
+   "prompt": "anime fan art"
+  },
+  {
+   "group": "category",
+   "label": "landscape",
+   "prompt": "a landscape photo"
+  },
+  {
+   "group": "category",
+   "label": "landscape",
+   "prompt": "a photo of scenery, city or nature without people"
+  },
+  {
+   "group": "category",
+   "label": "manga",
+   "prompt": "a manga page with panels and speech bubbles"
+  },
+  {
+   "group": "category",
+   "label": "manga",
+   "prompt": "a black and white comic page"
+  },
+  {
+   "group": "category",
+   "label": "manga",
+   "prompt": "a comic strip with speech bubbles"
+  },
+  {
+   "group": "category",
+   "label": "meme",
+   "prompt": "an internet meme"
+  },
+  {
+   "group": "category",
+   "label": "meme",
+   "prompt": "a funny image with caption text"
+  },
+  {
+   "group": "category",
+   "label": "meme",
+   "prompt": "a reaction image"
+  },
+  {
+   "group": "category",
+   "label": "nsfw_2d",
+   "prompt": "a hentai illustration"
+  },
+  {
+   "group": "category",
+   "label": "nsfw_2d",
+   "prompt": "an erotic anime drawing with nudity"
+  },
+  {
+   "group": "category",
+   "label": "nsfw_real",
+   "prompt": "a pornographic photo"
+  },
+  {
+   "group": "category",
+   "label": "nsfw_real",
+   "prompt": "a nude photo of a real person"
+  },
+  {
+   "group": "category",
+   "label": "object",
+   "prompt": "a photo of an object"
+  },
+  {
+   "group": "category",
+   "label": "object",
+   "prompt": "a product photo"
+  },
+  {
+   "group": "category",
+   "label": "object",
+   "prompt": "a photo of a device, tool or vehicle"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a photo of a person"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a photo of a real woman"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a photo of a real man"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a photo of people"
+  },
+  {
+   "group": "medium",
+   "label": "photo",
+   "prompt": "a photograph"
+  },
+  {
+   "group": "medium",
+   "label": "photo",
+   "prompt": "a real-life photo"
+  },
+  {
+   "group": "medium",
+   "label": "anime_2d",
+   "prompt": "an anime-style drawing"
+  },
+  {
+   "group": "medium",
+   "label": "anime_2d",
+   "prompt": "a 2D illustration"
+  },
+  {
+   "group": "medium",
+   "label": "manga_page",
+   "prompt": "a manga or comic page"
+  },
+  {
+   "group": "medium",
+   "label": "3d_render",
+   "prompt": "a 3D rendered image"
+  },
+  {
+   "group": "medium",
+   "label": "3d_render",
+   "prompt": "a CGI render"
+  },
+  {
+   "group": "medium",
+   "label": "screenshot",
+   "prompt": "a screenshot of a phone or computer screen"
+  },
+  {
+   "group": "nsfw",
+   "label": "safe",
+   "prompt": "a safe for work image"
+  },
+  {
+   "group": "nsfw",
+   "label": "safe",
+   "prompt": "an ordinary image with nothing sexual"
+  },
+  {
+   "group": "nsfw",
+   "label": "suggestive",
+   "prompt": "a sexually suggestive image"
+  },
+  {
+   "group": "nsfw",
+   "label": "suggestive",
+   "prompt": "a person in underwear or swimsuit"
+  },
+  {
+   "group": "nsfw",
+   "label": "explicit",
+   "prompt": "explicit nudity"
+  },
+  {
+   "group": "nsfw",
+   "label": "explicit",
+   "prompt": "a pornographic image"
+  },
+  {
+   "group": "nsfw",
+   "label": "explicit",
+   "prompt": "an image showing genitals or sex"
+  }
+ ]
+}

@@ -5,3 +5,5 @@ restore.json
 *.bak
 *.new
 image-classificator.new
+*.bak-*
+__pycache__/
