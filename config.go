@@ -49,6 +49,10 @@ type Config struct {
 	BackfillPaths  []string `json:"backfill_paths"`   // 옮기지 않고 메타만 채울 기존 폴더들 (재귀)
 	BackfillBatch  int      `json:"backfill_batch"`   // 소스가 비었을 때 한 번에 채울 장수 (기본 50)
 
+	// sha256이 완전히 같은 중복 이미지 처리: "move"(기본, duplicates_path로 이동) | "delete" | "keep"(기능 끔)
+	DuplicateAction string `json:"duplicate_action"`
+	DuplicatesPath  string `json:"duplicates_path"` // 기본: library_path의 부모 폴더 이름 + "_duplicates" (이미지 루트 밖)
+
 	Prompt string // 내부 사용용 (파일에서 읽은 내용)
 }
 
@@ -117,6 +121,26 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 		if config.BackfillBatch <= 0 {
 			config.BackfillBatch = 50
+		}
+		config.DuplicateAction = strings.ToLower(strings.TrimSpace(config.DuplicateAction))
+		if config.DuplicateAction == "" {
+			config.DuplicateAction = "move"
+		}
+		if config.DuplicateAction != "move" && config.DuplicateAction != "delete" && config.DuplicateAction != "keep" {
+			return nil, fmt.Errorf("duplicate_action은 move, delete, keep 중 하나여야 합니다: %q", config.DuplicateAction)
+		}
+		if config.DuplicatesPath == "" {
+			config.DuplicatesPath = filepath.Clean(filepath.Dir(filepath.Clean(config.LibraryPath))) + "_duplicates"
+		}
+		config.DuplicatesPath = filepath.Clean(config.DuplicatesPath)
+		if config.DuplicateAction != "keep" {
+			// 중복 폴더가 훑는 대상 안에 있으면 치운 파일을 다시 집어 들게 된다
+			for _, root := range append([]string{config.LibraryPath}, config.BackfillPaths...) {
+				root = filepath.Clean(root)
+				if config.DuplicatesPath == root || strings.HasPrefix(config.DuplicatesPath, root+string(filepath.Separator)) {
+					return nil, fmt.Errorf("duplicates_path(%s)는 library_path/backfill_paths(%s) 밖에 있어야 합니다", config.DuplicatesPath, root)
+				}
+			}
 		}
 		if config.ErrorPath == "" {
 			config.ErrorPath = filepath.Join(config.LibraryPath, "_error")

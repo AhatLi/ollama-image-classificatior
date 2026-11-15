@@ -201,6 +201,8 @@ go build -o image-classificator .
 | `error_path` | `library_path/_error` | 열 수 없는 이미지를 옮길 곳 |
 | `backfill_paths` | `[]` | 메타만 채울 기존 폴더들 |
 | `backfill_batch` | `50` | 소스가 비었을 때 한 번에 채울 장수 |
+| `duplicate_action` | `"move"` | sha256이 같은 중복 이미지 처리: `move` / `delete` / `keep`(기능 끔) |
+| `duplicates_path` | `<library_path의 부모>_duplicates` | 중복을 옮길 곳. `library_path`·`backfill_paths` 밖이어야 함 |
 | `tagger_port` | `8090` | 태거 서비스 포트 (127.0.0.1) |
 | `tagger_threads` | `4` | onnxruntime 스레드 수 |
 | `tagger_python` | `"python"` | 파이썬 실행 파일 |
@@ -222,6 +224,24 @@ go build -o image-classificator .
   "watch_mode": true
 }
 ```
+
+### 중복 이미지 제거 (sha256 완전 일치)
+
+내용이 바이트 단위로 완전히 같은 이미지는 한 장만 남깁니다. (리사이즈·재인코딩된 "비슷한" 이미지는 대상이 아닙니다.)
+
+- 시작할 때 `library_path`와 `backfill_paths` 아래 모든 `.meta.jsonl`에서 sha256 → 파일 위치를 읽어 메모리에 두고,
+  메타를 기록할 때마다 갱신합니다.
+- 소스 처리와 backfill 모두 **태깅 전에** 해시를 먼저 계산합니다. 같은 해시의 다른 파일이 이미 기록돼 있고
+  그 파일이 실제로 존재하면 중복으로 보고, 태깅도 메타 기록도 하지 않습니다. 기록만 있고 원본 파일이
+  사라진 경우는 중복이 아니므로 정상 처리합니다(먼저 메타가 기록된 쪽이 원본입니다).
+- `duplicate_action`:
+  - `move`(기본): `duplicates_path`로 옮깁니다. 소스의 중복은 `duplicates_path/<소스 이름>/`,
+    backfill의 중복은 backfill 루트 기준 상대 경로를 유지해 `duplicates_path/<상대 폴더>/`.
+    이름이 겹치면 `이름_1.확장자`.
+  - `delete`: 바로 지웁니다.
+  - `keep`: 기능을 끕니다(집합도 읽지 않음).
+- 처리한 중복은 `duplicates_path/duplicates.log`에 `시각<TAB>중복 경로<TAB>원본 경로<TAB>sha256`으로 남고,
+  분류기 로그에도 `중복(sha256 일치): ...` 줄이 남습니다.
 
 ### 메타데이터 형식 (v1)
 

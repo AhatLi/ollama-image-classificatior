@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -26,6 +27,7 @@ type TaggerProcessor struct {
 	client *TaggerClient
 	scan   *ImageProcessor // ScanImages / IsImageFile 재사용
 	bf     *backfillState
+	dup    *DupIndex // sha256 중복 제거 (dedup.go)
 }
 
 func runTaggerBackend(config *Config) error {
@@ -66,9 +68,13 @@ func runTaggerBackend(config *Config) error {
 		client: NewTaggerClient(srv, time.Duration(config.RequestTimeoutSec)*time.Second),
 		scan:   NewImageProcessor(config, nil),
 		bf:     newBackfillState(config),
+		dup:    NewDupIndex(config),
 	}
 	return tp.Run()
 }
+
+// errDuplicate는 소스 이미지가 중복이라 태깅 없이 처리됐음을 알리는 표식이다.
+var errDuplicate = errors.New("duplicate")
 
 func fileSHA256(path string) (string, int64, error) {
 	f, err := os.Open(path)
@@ -112,6 +118,19 @@ func summarize(r *TagResult) string {
 // processSourceImage는 소스 이미지 하나를 태깅하고 날짜 폴더로 옮긴 뒤 메타를 기록한다.
 func (tp *TaggerProcessor) processSourceImage(imagePath, src string) error {
 	fmt.Printf("처리 중: %s\n", imagePath)
+
+	// 해시를 먼저 계산해, 이미 기록된 이미지와 완전히 같으면 태깅하지 않는다
+	sha, size, err := fileSHA256(imagePath)
+	if err != nil {
+		return fmt.Errorf("해시 계산 실패: %w", err)
+	}
+	if orig, dup := tp.dup.Lookup(sha, imagePath); dup {
+		if err := tp.dup.Handle(imagePath, orig, sha, src); err != nil {
+			return err
+		}
+		return errDuplicate
+	}
+
 	res, err := tp.client.Classify(imagePath)
 	if err != nil {
 		if isBadImage(err) {
@@ -122,11 +141,6 @@ func (tp *TaggerProcessor) processSourceImage(imagePath, src string) error {
 		}
 		// 서비스 쪽 오류면 파일은 소스에 그대로 두고 다음 라운드에 다시 시도한다
 		return fmt.Errorf("태깅 실패: %w", err)
-	}
-
-	sha, size, err := fileSHA256(imagePath)
-	if err != nil {
-		return fmt.Errorf("해시 계산 실패: %w", err)
 	}
 
 	now := time.Now()
@@ -143,6 +157,7 @@ func (tp *TaggerProcessor) processSourceImage(imagePath, src string) error {
 		// 파일은 이미 옮겨졌다. 메타가 빠진 파일은 backfill이 library_path를 훑을 때 다시 채운다.
 		return fmt.Errorf("메타 기록 실패(파일은 %s 로 이동됨): %w", dest, err)
 	}
+	tp.dup.Add(sha, destDir, filepath.Base(dest))
 	fmt.Printf("  %s tags=%d\n", summarize(res), strings.Count(string(res.Tags), "],")+btoi(len(res.Tags) > 2))
 	fmt.Printf("  이동 완료: -> %s\n", dest)
 	return nil
@@ -179,6 +194,11 @@ func (tp *TaggerProcessor) processBatch(source string) (int, error) {
 		start := time.Now()
 		fmt.Printf("[%s %d/%d] (%s) ", src, i+1, len(images), start.In(kst).Format("2006-01-02 15:04:05"))
 		if err := tp.processSourceImage(imagePath, src); err != nil {
+			if err == errDuplicate {
+				moved++
+				fmt.Printf("  took %.1fs\n", time.Since(start).Seconds())
+				continue
+			}
 			fmt.Printf("error: %v (took %.1fs)\n", err, time.Since(start).Seconds())
 			if isBadImage(err) {
 				moved++ // 에러 폴더로 빠졌으므로 진행된 것으로 본다
@@ -250,6 +270,7 @@ type backfillState struct {
 
 	total     int // 이번 실행에서 backfill로 처리한 누적 장수
 	announced int
+	dups      int // 이번 실행에서 backfill 중 치운 중복 수
 	errors    int
 }
 
@@ -269,6 +290,24 @@ func newBackfillState(config *Config) *backfillState {
 		}
 	}
 	return &backfillState{roots: roots, clean: map[string]time.Time{}}
+}
+
+// relDir는 dir가 속한 backfill 루트 기준 상대 경로를 돌려준다 (루트 자체면 ".").
+func (b *backfillState) relDir(dir string) string {
+	best := ""
+	for _, r := range b.roots {
+		if (dir == r || strings.HasPrefix(dir, r+string(filepath.Separator))) && len(r) > len(best) {
+			best = r
+		}
+	}
+	if best == "" {
+		return filepath.Base(dir)
+	}
+	rel, err := filepath.Rel(best, dir)
+	if err != nil {
+		return filepath.Base(dir)
+	}
+	return rel
 }
 
 func (b *backfillState) walk() {
@@ -392,6 +431,23 @@ func (tp *TaggerProcessor) backfillBatch() int {
 			b.pi++
 			continue
 		}
+		sha, size, err := fileSHA256(path)
+		if err != nil {
+			fmt.Printf("[backfill] 해시 실패 %s: %v\n", path, err)
+			b.pi++
+			continue
+		}
+		if orig, dup := tp.dup.Lookup(sha, path); dup {
+			// 이미 메타가 있는 다른 파일과 완전히 같다: 태깅하지 않고 치운다 (backfill 루트 기준 상대 경로 유지)
+			if err := tp.dup.Handle(path, orig, sha, b.relDir(b.cur)); err != nil {
+				fmt.Printf("[backfill] %v\n", err)
+				break
+			}
+			b.dups++
+			b.pi++
+			n++
+			continue
+		}
 		res, err := tp.client.Classify(path)
 		if err != nil {
 			if !isBadImage(err) {
@@ -408,25 +464,20 @@ func (tp *TaggerProcessor) backfillBatch() int {
 			n++
 			continue
 		}
-		sha, size, err := fileSHA256(path)
-		if err != nil {
-			fmt.Printf("[backfill] 해시 실패 %s: %v\n", path, err)
-			b.pi++
-			continue
-		}
 		rec := NewMetaRecord(name, sha, size, st.ModTime(), "", res)
 		if err := AppendMeta(b.cur, rec, res.Emb); err != nil {
 			fmt.Printf("[backfill] 메타 기록 실패 %s: %v\n", path, err)
 			break
 		}
+		tp.dup.Add(sha, b.cur, name)
 		b.pi++
 		n++
 	}
 	if n > 0 {
 		b.total += n
 		el := time.Since(start).Seconds()
-		fmt.Printf("[backfill] (%s) %s +%d장 (이 폴더 남은 %d장, 이번 실행 누적 %d장, 실패 %d장) %.1fs/장\n",
-			time.Now().In(kst).Format("2006-01-02 15:04:05"), lastDir, n, len(b.pending)-b.pi, b.total, b.errors, el/float64(n))
+		fmt.Printf("[backfill] (%s) %s +%d장 (이 폴더 남은 %d장, 이번 실행 누적 %d장, 실패 %d장, 중복 %d장) %.1fs/장\n",
+			time.Now().In(kst).Format("2006-01-02 15:04:05"), lastDir, n, len(b.pending)-b.pi, b.total, b.errors, b.dups, el/float64(n))
 	}
 	return n
 }
