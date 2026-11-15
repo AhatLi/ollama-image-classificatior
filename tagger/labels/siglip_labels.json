@@ -11,42 +11,62 @@
   {
    "group": "category",
    "label": "animal",
-   "prompt": "a photo of a pet dog or cat"
+   "prompt": "a photo of a dog"
   },
   {
    "group": "category",
    "label": "animal",
-   "prompt": "a photo of wildlife"
+   "prompt": "a photo of a cat"
+  },
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of a bird, fish or insect"
+  },
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of a wild animal in nature"
+  },
+  {
+   "group": "category",
+   "label": "animal",
+   "prompt": "a photo of farm animals such as sheep, cows or horses"
   },
   {
    "group": "category",
    "label": "cosplay",
-   "prompt": "a photo of a person cosplaying an anime character"
+   "prompt": "a photo of a cosplayer wearing an anime character costume and wig"
   },
   {
    "group": "category",
    "label": "cosplay",
-   "prompt": "a cosplay photo"
+   "prompt": "a cosplay photo taken at a convention or studio"
   },
   {
    "group": "category",
    "label": "document",
-   "prompt": "a screenshot of a text document"
+   "prompt": "a screenshot of text"
   },
   {
    "group": "category",
    "label": "document",
-   "prompt": "a screenshot of a chat conversation"
+   "prompt": "a screenshot of a chat or messenger conversation"
   },
   {
    "group": "category",
    "label": "document",
-   "prompt": "a scanned page of text"
+   "prompt": "a screenshot of a web page, news article or social media post"
   },
   {
    "group": "category",
    "label": "document",
-   "prompt": "a screenshot of a web page or news article"
+   "prompt": "a scanned document or a page of a book"
+  },
+  {
+   "group": "category",
+   "label": "document",
+   "prompt": "a table, chart or infographic"
   },
   {
    "group": "category",
@@ -56,7 +76,12 @@
   {
    "group": "category",
    "label": "figure",
-   "prompt": "a photo of a plastic figurine or toy model"
+   "prompt": "a photo of a plastic figurine or scale model on a desk or shelf"
+  },
+  {
+   "group": "category",
+   "label": "figure",
+   "prompt": "a photo of a toy or doll"
   },
   {
    "group": "category",
@@ -70,23 +95,43 @@
   },
   {
    "group": "category",
+   "label": "food",
+   "prompt": "a photo of a drink or dessert"
+  },
+  {
+   "group": "category",
    "label": "game_screen",
    "prompt": "a screenshot of a video game"
   },
   {
    "group": "category",
    "label": "game_screen",
-   "prompt": "video game gameplay screenshot with user interface"
+   "prompt": "a video game screen with HUD and menus"
+  },
+  {
+   "group": "category",
+   "label": "game_screen",
+   "prompt": "a mobile game screenshot"
   },
   {
    "group": "category",
    "label": "grotesque",
-   "prompt": "a gross disgusting photo"
+   "prompt": "a photo of blood and gore"
   },
   {
    "group": "category",
    "label": "grotesque",
-   "prompt": "a gory or disturbing image"
+   "prompt": "a photo of a wound or injury"
+  },
+  {
+   "group": "category",
+   "label": "grotesque",
+   "prompt": "a photo of a dead body"
+  },
+  {
+   "group": "category",
+   "label": "grotesque",
+   "prompt": "a medical photo of a skin disease"
   },
   {
    "group": "category",
@@ -96,22 +141,37 @@
   {
    "group": "category",
    "label": "illustration",
-   "prompt": "a digital drawing of an anime character"
+   "prompt": "a digital painting of an anime girl"
   },
   {
    "group": "category",
    "label": "illustration",
-   "prompt": "anime fan art"
+   "prompt": "anime fan art of a character"
+  },
+  {
+   "group": "category",
+   "label": "illustration",
+   "prompt": "a colored anime-style drawing"
+  },
+  {
+   "group": "category",
+   "label": "illustration",
+   "prompt": "a screenshot from an anime"
   },
   {
    "group": "category",
    "label": "landscape",
-   "prompt": "a landscape photo"
+   "prompt": "a landscape photo of nature"
   },
   {
    "group": "category",
    "label": "landscape",
-   "prompt": "a photo of scenery, city or nature without people"
+   "prompt": "a photo of a city street or buildings"
+  },
+  {
+   "group": "category",
+   "label": "landscape",
+   "prompt": "a photo of the sky, sea or mountains"
   },
   {
    "group": "category",
@@ -126,42 +186,27 @@
   {
    "group": "category",
    "label": "manga",
-   "prompt": "a comic strip with speech bubbles"
+   "prompt": "a webtoon or comic strip with speech bubbles"
+  },
+  {
+   "group": "category",
+   "label": "manga",
+   "prompt": "a four-panel comic"
   },
   {
    "group": "category",
    "label": "meme",
-   "prompt": "an internet meme"
+   "prompt": "an image macro meme with large caption text at the top and bottom"
   },
   {
    "group": "category",
    "label": "meme",
-   "prompt": "a funny image with caption text"
+   "prompt": "a funny edited picture with text overlaid on it"
   },
   {
    "group": "category",
    "label": "meme",
-   "prompt": "a reaction image"
-  },
-  {
-   "group": "category",
-   "label": "nsfw_2d",
-   "prompt": "a hentai illustration"
-  },
-  {
-   "group": "category",
-   "label": "nsfw_2d",
-   "prompt": "an erotic anime drawing with nudity"
-  },
-  {
-   "group": "category",
-   "label": "nsfw_real",
-   "prompt": "a pornographic photo"
-  },
-  {
-   "group": "category",
-   "label": "nsfw_real",
-   "prompt": "a nude photo of a real person"
+   "prompt": "a collage of pictures with joke captions"
   },
   {
    "group": "category",
@@ -176,27 +221,47 @@
   {
    "group": "category",
    "label": "object",
-   "prompt": "a photo of a device, tool or vehicle"
+   "prompt": "a photo of an electronic device"
+  },
+  {
+   "group": "category",
+   "label": "object",
+   "prompt": "a photo of a car or vehicle"
+  },
+  {
+   "group": "category",
+   "label": "object",
+   "prompt": "a photo of clothes, shoes or accessories without a person"
   },
   {
    "group": "category",
    "label": "real_person",
-   "prompt": "a photo of a person"
+   "prompt": "a photo of a person in everyday clothes"
   },
   {
    "group": "category",
    "label": "real_person",
-   "prompt": "a photo of a real woman"
+   "prompt": "a portrait photo of a woman"
   },
   {
    "group": "category",
    "label": "real_person",
-   "prompt": "a photo of a real man"
+   "prompt": "a portrait photo of a man"
   },
   {
    "group": "category",
    "label": "real_person",
-   "prompt": "a photo of people"
+   "prompt": "a photo of a group of people"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a selfie"
+  },
+  {
+   "group": "category",
+   "label": "real_person",
+   "prompt": "a photo of a celebrity or idol"
   },
   {
    "group": "medium",
@@ -206,7 +271,7 @@
   {
    "group": "medium",
    "label": "photo",
-   "prompt": "a real-life photo"
+   "prompt": "a real-life photo taken with a camera"
   },
   {
    "group": "medium",
@@ -216,22 +281,22 @@
   {
    "group": "medium",
    "label": "anime_2d",
-   "prompt": "a 2D illustration"
+   "prompt": "a 2d illustration or painting"
   },
   {
    "group": "medium",
    "label": "manga_page",
-   "prompt": "a manga or comic page"
+   "prompt": "a manga or comic page with panels"
   },
   {
    "group": "medium",
    "label": "3d_render",
-   "prompt": "a 3D rendered image"
+   "prompt": "a 3d rendered image"
   },
   {
    "group": "medium",
    "label": "3d_render",
-   "prompt": "a CGI render"
+   "prompt": "a cgi render"
   },
   {
    "group": "medium",
@@ -239,39 +304,9 @@
    "prompt": "a screenshot of a phone or computer screen"
   },
   {
-   "group": "nsfw",
-   "label": "safe",
-   "prompt": "a safe for work image"
-  },
-  {
-   "group": "nsfw",
-   "label": "safe",
-   "prompt": "an ordinary image with nothing sexual"
-  },
-  {
-   "group": "nsfw",
-   "label": "suggestive",
-   "prompt": "a sexually suggestive image"
-  },
-  {
-   "group": "nsfw",
-   "label": "suggestive",
-   "prompt": "a person in underwear or swimsuit"
-  },
-  {
-   "group": "nsfw",
-   "label": "explicit",
-   "prompt": "explicit nudity"
-  },
-  {
-   "group": "nsfw",
-   "label": "explicit",
-   "prompt": "a pornographic image"
-  },
-  {
-   "group": "nsfw",
-   "label": "explicit",
-   "prompt": "an image showing genitals or sex"
+   "group": "medium",
+   "label": "screenshot",
+   "prompt": "a screenshot with user interface elements and text"
   }
  ]
 }
